@@ -1,2 +1,4 @@
 # 3D-Flood-Impact
 3D Flood Impact ArcGIS Pro solution
+
+3D Flood Impact solution for ArcGIS Pro allows the user to create and publish 3D flood levels such as water elevation surfaces. Input data are water surface elevation rasters with elevation as value. The solution consist of a series of ArcGIS Pro tasks and tools.
