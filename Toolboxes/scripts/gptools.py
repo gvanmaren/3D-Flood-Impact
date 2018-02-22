@@ -2,9 +2,9 @@ import arcpy
 import arcpy.cartography as CA
 import time
 import os
-import CommonLib
-from CommonLib import create_msg_body, msg, trace
-from settings import *
+import scripts.CommonLib as CommonLib
+from scripts.CommonLib import create_msg_body, msg, trace
+from scripts.settings import *
 
 class Create3DFloodLevel(object):
     def __init__(self):
@@ -205,7 +205,7 @@ class Create3DFloodLevel(object):
 class CreateDepthRaster(object):
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
-        self.label = "Create Dept hRaster"
+        self.label = "Create Depth Raster"
         self.description = "Create Depth Raster"
         self.canRunInBackground = False
 

@@ -1,7 +1,8 @@
-import gptools
-from gptools import *
+import scripts.gptools as gptools
 import importlib
 importlib.reload(gptools)  # force reload of the module
+from scripts.gptools import *
+
 
 class Toolbox(object):
     def __init__(self):
