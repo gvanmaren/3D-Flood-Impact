@@ -257,6 +257,15 @@ def is_layer(layer):
         return 0
 
 
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+        pass
+
+
 def get_full_path_from_layer(in_layer):
     dir_name = os.path.dirname(arcpy.Describe(in_layer).catalogPath)
     layer_name = arcpy.Describe(in_layer).name
@@ -1921,3 +1930,5 @@ def unitConversion(layer_unit, input_unit, debug):
         else:
             if debug == 1:
                 msg(msg_body)
+
+
