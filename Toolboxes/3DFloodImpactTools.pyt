@@ -11,6 +11,6 @@ class Toolbox(object):
         self.alias = "3D Flood Impact "
 
         # List of tool classes associated with this toolbox
-        self.tools = [Create3DFloodLevel, CreateDepthRaster]
+        self.tools = [Create3DFloodLevelFromRaster, Create3DFloodLevelFromPolygons, CreateDepthRaster]
 
 
