@@ -253,6 +253,26 @@ def get_datatype_from_layer(layer):
     desc = arcpy.Describe(layer)
     return desc.dataType
 
+def get_raster_featuretype_from_layer(layer):
+    desc = arcpy.Describe(layer)
+    shape_type = None
+
+    if desc.dataType == "FeatureClass":
+        msg_prefix = "The data type is: " + desc.shapetype
+        shape_type = desc.shapetype
+        msg_body = create_msg_body(msg_prefix, 0, 0)
+        msg(msg_body)
+    elif desc.dataType == "RasterDataset":
+        cell_size = arcpy.GetRasterProperties_management(layer, "CELLSIZEX")
+        msg_prefix = "The data type is: Raster. Cellsize is: " + str(cell_size.getOutput(0))
+        msg_body = create_msg_body(msg_prefix, 0, 0)
+        msg(msg_body)
+    else:
+        msg_prefix = "Data type not supported. RasterDataset or FeatureClass only."
+        msg_body = create_msg_body(msg_prefix, 0, 0)
+        msg(msg_body)
+
+    return desc.dataType, shape_type
 
 def is_layer(layer):
     desc_fc = arcpy.Describe(layer)
@@ -1052,6 +1072,80 @@ def get_xy_unit(local_lyr, debug):
             if debug == 1:
                 msg(msg_body)
 
+
+def get_cs_info(local_lyr, debug):
+
+    if debug == 1:
+        msg("--------------------------")
+        msg("Executing is_projected...")
+
+    start_time = time.clock()
+
+    try:
+        cs_name = None
+        cs_vcs_name = None
+        projected = False
+
+        sr = arcpy.Describe(local_lyr).spatialReference
+
+        if sr:
+            cs_name = sr.name
+            msg_prefix = "Coordinate system: " + cs_name
+            msg_body = create_msg_body(msg_prefix, 0, 0)
+            msg(msg_body)
+
+            if sr.type == 'PROJECTED' or sr.type == 'Projected':
+                projected = True
+                msg_prefix = "Coordinate system type: Projected."
+                msg_body = create_msg_body(msg_prefix, 0, 0)
+                msg(msg_body)
+            else:
+                projected = False
+                msg_prefix = "Coordinate system type: Geographic."
+                msg_body = create_msg_body(msg_prefix, 0, 0)
+                msg(msg_body)
+
+            if sr.VCS:
+                cs_vcs_name = sr.VCS.name
+                msg_prefix = "Vertical coordinate system: " + cs_vcs_name
+                msg_body = create_msg_body(msg_prefix, 0, 0)
+                msg(msg_body)
+            else:
+                msg_prefix = "No Vertical coordinate system detected."
+                msg_body = create_msg_body(msg_prefix, 0, 0)
+                msg(msg_body)
+        else:
+            msg_prefix = "No coordinate system detected."
+            msg_body = create_msg_body(msg_prefix, 0, 0)
+            msg(msg_body)
+
+        msg_prefix = "Function is_projected completed successfully."
+        failed = False
+
+        return cs_name, cs_vcs_name, projected
+
+    except:
+        line, filename, synerror = trace()
+        failed = True
+        msg_prefix = ""
+        raise FunctionError(
+            {
+                "function": "is_projected",
+                "line": line,
+                "filename": filename,
+                "synerror": synerror,
+                "arc": str(arcpy.GetMessages(2))
+            }
+        )
+
+    finally:
+        end_time = time.clock()
+        msg_body = create_msg_body(msg_prefix, start_time, end_time)
+        if failed:
+            msg(msg_body, ERROR)
+        else:
+            if debug == 1:
+                msg(msg_body)
 
 
 def get_row_values_for_fields_with_floatvalue(lyr, table, fields, select_field, value):

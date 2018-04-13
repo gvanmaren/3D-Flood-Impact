@@ -52,136 +52,8 @@ class FunctionError(Exception):
 
 
 # used functions
-def flood_from_polygon(input_source, input_type, no_flood_value, baseline_flood_value, flood_value, outward_buffer, output_polygons, debug):
-    try:
-        # Get Attributes from User
-        if debug == 0:
-            # script variables
-            aprx = arcpy.mp.ArcGISProject("CURRENT")
-            home_directory = aprx.homeFolder
-            tiff_directory = home_directory + "\\Tiffs"
-            tin_directory = home_directory + "\\Tins"
-            scripts_directory = aprx.homeFolder + "\\Scripts"
-            rule_directory = aprx.homeFolder + "\\RulePackages"
-            log_directory = aprx.homeFolder + "\\Logs"
-            layer_directory = home_directory + "\\LayerFiles"
-            project_ws = aprx.defaultGeodatabase
 
-            enableLogging = True
-            DeleteIntermediateData = True
-            verbose = 0
-            in_memory_switch = True
-        else:
-            # debug
-            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\WSE_01pct_testarea2'
-#            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\MD_LWX_slr_0ft_clip'
-            input_type = "raster"
-            output_polygons = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Results.gdb\FloodPolys'
-            no_flood_value = "NoData"  # value or "NoData"
-            baseline_flood_value = 0.72
-            flood_value = 6
-            outward_buffer = 0
-            home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact'
-            tiff_directory = home_directory + "\\Tiffs"
-            tin_directory = home_directory + "\\Tins"
-            scripts_directory = home_directory + "\\Scripts"
-            rule_directory = home_directory + "\\RulePackages"
-            log_directory = home_directory + "\\Logs"
-            layer_directory = home_directory + "\\LayerFiles"
-            project_ws = home_directory + "\\Results.gdb"
-
-            enableLogging = False
-            DeleteIntermediateData = True
-            verbose = 1
-            in_memory_switch = False
-
-        scratch_ws = common_lib.create_gdb(home_directory, "Intermediate.gdb")
-        arcpy.env.workspace = scratch_ws
-        arcpy.env.overwriteOutput = True
-
-        if not os.path.exists(tiff_directory):
-            os.makedirs(tiff_directory)
-
-        if not os.path.exists(tin_directory):
-            os.makedirs(tin_directory)
-
-        common_lib.set_up_logging(log_directory, TOOLNAME)
-        start_time = time.clock()
-
-        if arcpy.CheckExtension("3D") == "Available":
-            arcpy.CheckOutExtension("3D")
-
-            if arcpy.CheckExtension("Spatial") == "Available":
-                arcpy.CheckOutExtension("Spatial")
-
-
-            else:
-                raise LicenseErrorSpatial
-        else:
-            raise LicenseError3D
-
-        arcpy.ClearWorkspaceCache_management()
-
-    except NotProjected:
-        print("Input data needs to be in a projected coordinate system. Exiting...")
-        arcpy.AddError("Input data needs to be in a projected coordinate system. Exiting...")
-
-    except NoLayerFile:
-        print("Can't find Layer file. Exiting...")
-        arcpy.AddError("Can't find Layer file. Exiting...")
-
-    except LicenseError3D:
-        print("3D Analyst license is unavailable")
-        arcpy.AddError("3D Analyst license is unavailable")
-
-    except LicenseErrorSpatial:
-        print("Spatial Analyst license is unavailable")
-        arcpy.AddError("Spatial Analyst license is unavailable")
-
-    except NoNoDataError:
-        print("Input raster does not have NODATA values")
-        arcpy.AddError("Input raster does not have NODATA values")
-
-    except NoUnits:
-        print("No units detected on input data")
-        arcpy.AddError("No units detected on input data")
-
-    except NoPolygons:
-        print("Input data can only be polygon features or raster datasets.")
-        arcpy.AddError("Input data can only be polygon features or raster datasets.")
-
-    except ValueError:
-        print("Input no flood value is not a number.")
-        arcpy.AddError("Input no flood value is not a number.")
-
-    except arcpy.ExecuteError:
-        line, filename, synerror = trace()
-        msg("Error on %s" % line, ERROR)
-        msg("Error in file name:  %s" % filename, ERROR)
-        msg("With error message:  %s" % synerror, ERROR)
-        msg("ArcPy Error Message:  %s" % arcpy.GetMessages(2), ERROR)
-
-    except FunctionError as f_e:
-        messages = f_e.args[0]
-        msg("Error in function:  %s" % messages["function"], ERROR)
-        msg("Error on %s" % messages["line"], ERROR)
-        msg("Error in file name:  %s" % messages["filename"], ERROR)
-        msg("With error message:  %s" % messages["synerror"], ERROR)
-        msg("ArcPy Error Message:  %s" % messages["arc"], ERROR)
-
-    except:
-        line, filename, synerror = trace()
-        msg("Error on %s" % line, ERROR)
-        msg("Error in file name:  %s" % filename, ERROR)
-        msg("with error message:  %s" % synerror, ERROR)
-
-    finally:
-        arcpy.CheckInExtension("3D")
-        arcpy.CheckInExtension("Spatial")
-
-
-
-def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevation, baseline_flood_value, flood_value, outward_buffer, output_polygons, debug):
+def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevation_raster, baseline_elevation_value, outward_buffer, output_polygons, debug):
     try:
         # Get Attributes from User
         if debug == 0:
@@ -202,22 +74,13 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
             in_memory_switch = True
         else:
             # debug
-            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\WSE_01pct_testarea2'
-#            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\MD_LWX_slr_0ft_clip'
-            input_type = "raster"
-            output_polygons = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Results.gdb\FloodPolys'
-            no_flood_value = "NoData"  # value or "NoData"
-            baseline_elevation = r'D:\Gert\Work\Esri\Solutions\3D FloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\base_elevation'
-            baseline_flood_value = 0.72
-            flood_value = 6
-            outward_buffer = 0
             home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact'
             tiff_directory = home_directory + "\\Tiffs"
             tin_directory = home_directory + "\\Tins"
             scripts_directory = home_directory + "\\Scripts"
-            rule_directory = home_directory + "\\RulePackages"
+            rule_directory = home_directory + "\\rule_packages"
             log_directory = home_directory + "\\Logs"
-            layer_directory = home_directory + "\\LayerFiles"
+            layer_directory = home_directory + "\\layer_files"
             project_ws = home_directory + "\\Results.gdb"
 
             enableLogging = False
@@ -300,15 +163,63 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                     msg(msg_body)
 
                     if int(has_nodata) == 1:
-
-                        # TODO!!!
-                        # 0 add baseline and flood value to raster
-
                         # 1. get the outline of the raster as polygon via RasterDomain
                         xy_unit = common_lib.get_xy_unit(input_raster, 0)
 
                         if xy_unit:
                             cell_size = arcpy.GetRasterProperties_management(input_raster, "CELLSIZEX")
+
+                            # TODO!!!
+                            # 0 add baseline and flood value to raster
+                            # add base elevation raster to input floodng
+                            if baseline_elevation_raster:
+                                # check celll size
+                                cell_size_base = arcpy.GetRasterProperties_management(baseline_elevation_raster, "CELLSIZEX")
+
+                                if cell_size_base.getOutput(0) == cell_size.getOutput(0):
+                                    # Execute Plus
+                                    flood_plus_base_raster = os.path.join(scratch_ws, "flooding_plus_base")
+                                    if arcpy.Exists(flood_plus_base_raster):
+                                        arcpy.Delete_management(flood_plus_base_raster)
+
+                                    listRasters = []
+                                    listRasters.append(input_raster)
+                                    listRasters.append(baseline_elevation_raster)
+
+                                    desc = arcpy.Describe(listRasters[0])
+                                    arcpy.MosaicToNewRaster_management(listRasters, scratch_ws, "flooding_plus_base", desc.spatialReference,
+                                                                        "32_BIT_FLOAT", cell_size, 1, "SUM", "")
+
+                                    # check where there is IsNull and set the con values
+                                    is_Null = os.path.join(scratch_ws, "is_Null")
+                                    if arcpy.Exists(is_Null):
+                                        arcpy.Delete_management(is_Null)
+
+                                    is_Null_raster = arcpy.sa.IsNull(input_raster)
+                                    is_Null_raster.save(is_Null)
+
+                                    # Con
+                                    flood_plus_base_raster_null = os.path.join(scratch_ws, "flooding_plus_base_null")
+                                    if arcpy.Exists(flood_plus_base_raster_null):
+                                        arcpy.Delete_management(flood_plus_base_raster_null)
+
+                                    msg_body = create_msg_body("Adding baseline elevation raster to input flood layer...", 0, 0)
+                                    msg(msg_body)
+
+                                    fpbrn = arcpy.sa.Con(is_Null, input_raster, flood_plus_base_raster)
+                                    fpbrn.save(flood_plus_base_raster_null)
+
+                                    input_raster = flood_plus_base_raster_null
+                                else:
+                                    arcpy.AddWarning("Cell size of " + input_raster + " is different than " + baseline_elevation_raster + ". Ignoring Base Elevation Raster.")
+                            else:
+                                if baseline_elevation_value > 0:
+                                    flood_plus_base_raster = os.path.join(scratch_ws, "flooding_plus_base")
+                                    if arcpy.Exists(flood_plus_base_raster):
+                                        arcpy.Delete_management(flood_plus_base_raster)
+                                    arcpy.Plus_3d(input_raster, baseline_elevation_value, flood_plus_base_raster)
+
+                                    input_raster = flood_plus_base_raster
 
                             msg_body = create_msg_body("Creating 3D polygons...", 0, 0)
                             msg(msg_body)
@@ -417,6 +328,7 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             msg(msg_body)
 
                             # clip terrain to extent
+#                            arcpy.Clip_management(interpolated_raster, "#", flood_clip_raster, raster_polygons)    Check again
                             arcpy.Clip_management(interpolated_raster, "#", flood_clip_raster, raster_polygons)
 
                             # 7. Isnull, and Con to grab values from flood_clip_raster for
@@ -659,4 +571,4 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
 
 # for debug only!
 if __name__ == "__main__":
-    flood_from_raster("", "", "", "", "", "", "", "", 1)
+    flood_from_raster("", "", "", "", "", "", 1)
