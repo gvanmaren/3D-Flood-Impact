@@ -135,7 +135,7 @@ def main():
             ## User input
             input_source = arcpy.GetParameter(0)
             no_flood_value =  arcpy.GetParameterAsText(1)
-            flood_elevation_value = arcpy.GetParameter(2)
+            flood_elevation_value = arcpy.GetParameterAsText(2)
             output_features = arcpy.GetParameterAsText(3)
 
             # script variables

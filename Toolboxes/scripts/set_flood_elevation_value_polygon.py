@@ -1,7 +1,7 @@
 import arcpy
 import time
 import os
-import sys
+import re
 import scripts.common_lib as common_lib
 from scripts.common_lib import create_msg_body, msg, trace
 from scripts.settings import *
@@ -94,6 +94,8 @@ def set_value(input_source, flood_elevation_attribute, esri_flood_elevation_attr
         scratch_ws = common_lib.create_gdb(home_directory, "Intermediate.gdb")
         arcpy.env.workspace = scratch_ws
         arcpy.env.overwriteOutput = True
+
+        default_flood_elevation_value = float(re.sub("[,.]", ".", default_flood_elevation_value))
 
         if not os.path.exists(tiff_directory):
             os.makedirs(tiff_directory)

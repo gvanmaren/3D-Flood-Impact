@@ -2,6 +2,7 @@ import arcpy
 import time
 import os
 import arcpy.cartography as CA
+import re
 
 import sys
 import math
@@ -9,6 +10,7 @@ import scripts.common_lib as common_lib
 from scripts.common_lib import create_msg_body, msg, trace
 from scripts.settings import *
 
+use_in_memory = True
 
 # error classes
 class NotProjected(Exception):
@@ -92,6 +94,9 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
         arcpy.env.workspace = scratch_ws
         arcpy.env.overwriteOutput = True
 
+        # fail safe for Eurpose's comma's
+        baseline_elevation_value = float(re.sub("[,.]", ".", baseline_elevation_value))
+
         if not os.path.exists(tiff_directory):
             os.makedirs(tiff_directory)
 
@@ -118,10 +123,14 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                     if input_type == "FeatureLayer" or input_type == "FeatureClass":
                         # check if polygon, else bail
                         if arcpy.Describe(input_source).shapetype == "polygon":
-                            poly_raster = os.path.join(scratch_ws, "poly_raster")
 
-                            if arcpy.Exists(poly_raster):
-                                arcpy.Delete_management(poly_raster)
+                            if use_in_memory:
+                                poly_raster = "in_memory/poly_raster"
+                            else:
+                                poly_raster = os.path.join(scratch_ws, "poly_raster")
+
+                                if arcpy.Exists(poly_raster):
+                                    arcpy.Delete_management(poly_raster)
 
                                 # Execute PolygonToRaster
     #                            arcpy.PolygonToRaster_conversion(input_source, z_field, DTMMean)
@@ -140,9 +149,13 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                                 "Setting no flood value: " + no_flood_value + " to NoData in copy of " + common_lib.get_name_from_feature_class(
                                     input_raster) + "...", 0, 0)
                             msg(msg_body)
-                            null_for_no_flooded_areas_raster = os.path.join(scratch_ws, "null_for_flooded")
-                            if arcpy.Exists(null_for_no_flooded_areas_raster):
-                               arcpy.Delete_management(null_for_no_flooded_areas_raster)
+
+                            if use_in_memory:
+                                null_for_no_flooded_areas_raster = "in_memory/null_for_flooded"
+                            else:
+                                null_for_no_flooded_areas_raster = os.path.join(scratch_ws, "null_for_flooded")
+                                if arcpy.Exists(null_for_no_flooded_areas_raster):
+                                   arcpy.Delete_management(null_for_no_flooded_areas_raster)
 
                             whereClause = "VALUE = " + no_flood_value
 
@@ -178,9 +191,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
 
                                 if cell_size_base.getOutput(0) == cell_size.getOutput(0):
                                     # Execute Plus
-                                    flood_plus_base_raster = os.path.join(scratch_ws, "flooding_plus_base")
-                                    if arcpy.Exists(flood_plus_base_raster):
-                                        arcpy.Delete_management(flood_plus_base_raster)
+                                    if use_in_memory:
+                                        flood_plus_base_raster = "in_memory/flooding_plus_base"
+                                    else:
+                                        flood_plus_base_raster = os.path.join(scratch_ws, "flooding_plus_base")
+                                        if arcpy.Exists(flood_plus_base_raster):
+                                            arcpy.Delete_management(flood_plus_base_raster)
 
                                     listRasters = []
                                     listRasters.append(input_raster)
@@ -191,17 +207,23 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                                                                         "32_BIT_FLOAT", cell_size, 1, "SUM", "")
 
                                     # check where there is IsNull and set the con values
-                                    is_Null = os.path.join(scratch_ws, "is_Null")
-                                    if arcpy.Exists(is_Null):
-                                        arcpy.Delete_management(is_Null)
+                                    if use_in_memory:
+                                        is_Null = "in_memory/is_Null"
+                                    else:
+                                        is_Null = os.path.join(scratch_ws, "is_Null")
+                                        if arcpy.Exists(is_Null):
+                                            arcpy.Delete_management(is_Null)
 
                                     is_Null_raster = arcpy.sa.IsNull(input_raster)
                                     is_Null_raster.save(is_Null)
 
                                     # Con
-                                    flood_plus_base_raster_null = os.path.join(scratch_ws, "flooding_plus_base_null")
-                                    if arcpy.Exists(flood_plus_base_raster_null):
-                                        arcpy.Delete_management(flood_plus_base_raster_null)
+                                    if use_in_memory:
+                                        flood_plus_base_raster_null = "in_memory/flooding_plus_base_null"
+                                    else:
+                                        flood_plus_base_raster_null = os.path.join(scratch_ws, "flooding_plus_base_null")
+                                        if arcpy.Exists(flood_plus_base_raster_null):
+                                            arcpy.Delete_management(flood_plus_base_raster_null)
 
                                     msg_body = create_msg_body("Adding baseline elevation raster to input flood layer...", 0, 0)
                                     msg(msg_body)
@@ -214,9 +236,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                                     arcpy.AddWarning("Cell size of " + input_raster + " is different than " + baseline_elevation_raster + ". Ignoring Base Elevation Raster.")
                             else:
                                 if baseline_elevation_value > 0:
-                                    flood_plus_base_raster = os.path.join(scratch_ws, "flooding_plus_base")
-                                    if arcpy.Exists(flood_plus_base_raster):
-                                        arcpy.Delete_management(flood_plus_base_raster)
+                                    if use_in_memory:
+                                        flood_plus_base_raster = "in_memory/flood_plus_base"
+                                    else:
+                                        flood_plus_base_raster = os.path.join(scratch_ws, "flooding_plus_base")
+                                        if arcpy.Exists(flood_plus_base_raster):
+                                            arcpy.Delete_management(flood_plus_base_raster)
                                     arcpy.Plus_3d(input_raster, baseline_elevation_value, flood_plus_base_raster)
 
                                     input_raster = flood_plus_base_raster
@@ -224,17 +249,23 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             msg_body = create_msg_body("Creating 3D polygons...", 0, 0)
                             msg(msg_body)
 
-                            raster_polygons = os.path.join(scratch_ws, "raster_polygons")
-                            if arcpy.Exists(raster_polygons):
-                                arcpy.Delete_management(raster_polygons)
+                            if use_in_memory:
+                                raster_polygons = "in_memory/raster_polygons"
+                            else:
+                                raster_polygons = os.path.join(scratch_ws, "raster_polygons")
+                                if arcpy.Exists(raster_polygons):
+                                    arcpy.Delete_management(raster_polygons)
 
                             out_geom = "POLYGON"  # output geometry type
                             arcpy.RasterDomain_3d(input_raster, raster_polygons, out_geom)
 
                             # 2. buffer it inwards so that we have a polygon only of the perimeter plus a few ???????cells inward???????.
-                            polygons_inward = os.path.join(scratch_ws, "inward_buffer")
-                            if arcpy.Exists(polygons_inward):
-                                arcpy.Delete_management(polygons_inward)
+                            if use_in_memory:
+                                polygons_inward = "in_memory/inward_buffer"
+                            else:
+                                polygons_inward = os.path.join(scratch_ws, "inward_buffer")
+                                if arcpy.Exists(polygons_inward):
+                                    arcpy.Delete_management(polygons_inward)
 
                             x = cell_size.getOutput(0)
 
@@ -252,17 +283,23 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             msg(msg_body)
 
                             # 3. mask in ExtractByMask: gives just boundary raster with a few cells inwards
-                            extract_mask_raster = os.path.join(scratch_ws, "extract_mask")
-                            if arcpy.Exists(extract_mask_raster):
-                                arcpy.Delete_management(extract_mask_raster)
+                            if use_in_memory:
+                                extract_mask_raster = "in_memory/extract_mask"
+                            else:
+                                extract_mask_raster = os.path.join(scratch_ws, "extract_mask")
+                                if arcpy.Exists(extract_mask_raster):
+                                    arcpy.Delete_management(extract_mask_raster)
 
                             extract_temp_raster = arcpy.sa.ExtractByMask(input_raster, polygons_inward)
                             extract_temp_raster.save(extract_mask_raster)
 
                             # 4. convert the output to points
-                            extract_mask_points = os.path.join(scratch_ws, "extract_points")
-                            if arcpy.Exists(extract_mask_points):
-                                arcpy.Delete_management(extract_mask_points)
+                            if use_in_memory:
+                                extract_mask_points = "in_memory/extract_points"
+                            else:
+                                extract_mask_points = os.path.join(scratch_ws, "extract_points")
+                                if arcpy.Exists(extract_mask_points):
+                                    arcpy.Delete_management(extract_mask_points)
 
                             arcpy.RasterToPoint_conversion(extract_mask_raster, extract_mask_points, "VALUE")
 
@@ -271,9 +308,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
 
                             # 5. Interpolate: this will also interpolate outside the flood boundary which is
                             # what we need so we get a nice 3D poly that extends into the surrounding DEM
-                            interpolated_raster = os.path.join(scratch_ws, "interpolate_raster")
-                            if arcpy.Exists(interpolated_raster):
-                                arcpy.Delete_management(interpolated_raster)
+                            if use_in_memory:
+                                interpolated_raster = "in_memory/interpolate_raster"
+                            else:
+                                interpolated_raster = os.path.join(scratch_ws, "interpolate_raster")
+                                if arcpy.Exists(interpolated_raster):
+                                    arcpy.Delete_management(interpolated_raster)
 
                             zField = "grid_code"
                             power = 2
@@ -294,17 +334,23 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             msg(msg_body)
 
                             # clip the input surface
-                            extent_clip_idwraster = os.path.join(scratch_ws, "extent_clip_idw")
-                            if arcpy.Exists(extent_clip_idwraster):
-                                arcpy.Delete_management(extent_clip_idwraster)
+                            if use_in_memory:
+                                extent_clip_idwraster = "in_memory/extent_clip_idw"
+                            else:
+                                extent_clip_idwraster = os.path.join(scratch_ws, "extent_clip_idw")
+                                if arcpy.Exists(extent_clip_idwraster):
+                                    arcpy.Delete_management(extent_clip_idwraster)
 
                             # clip terrain to extent
                             arcpy.Clip_management(interpolated_raster, "#", extent_clip_idwraster, extent_poly)
 
                             # 6. clip the interpolated raster by (outward buffered) outline polygon
-                            polygons_outward = os.path.join(scratch_ws, "outward_buffer")
-                            if arcpy.Exists(polygons_outward):
-                                arcpy.Delete_management(polygons_outward)
+                            if use_in_memory:
+                                polygons_outward = "in_memory/outward_buffer"
+                            else:
+                                polygons_outward = os.path.join(scratch_ws, "outward_buffer")
+                                if arcpy.Exists(polygons_outward):
+                                    arcpy.Delete_management(polygons_outward)
 
                             outward_buffer += 0.5 * int(x)  # we buffer out by half the raster cellsize
 
@@ -320,9 +366,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                                 raster_polygons = polygons_outward
 
                             # clip the input surface
-                            flood_clip_raster = os.path.join(scratch_ws, "flood_clip_raster")
-                            if arcpy.Exists(flood_clip_raster):
-                                arcpy.Delete_management(flood_clip_raster)
+                            if use_in_memory:
+                                flood_clip_raster = "in_memory/flood_clip_raster"
+                            else:
+                                flood_clip_raster = os.path.join(scratch_ws, "flood_clip_raster")
+                                if arcpy.Exists(flood_clip_raster):
+                                    arcpy.Delete_management(flood_clip_raster)
 
                             msg_body = create_msg_body("Clipping flood raster...", 0, 0)
                             msg(msg_body)
@@ -333,17 +382,23 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
 
                             # 7. Isnull, and Con to grab values from flood_clip_raster for
                            # create NUll mask
-                            is_Null = os.path.join(scratch_ws, "is_Null")
-                            if arcpy.Exists(is_Null):
-                                arcpy.Delete_management(is_Null)
+                            if use_in_memory:
+                                is_Null = "in_memory/is_Null"
+                            else:
+                                is_Null = os.path.join(scratch_ws, "is_Null")
+                                if arcpy.Exists(is_Null):
+                                    arcpy.Delete_management(is_Null)
 
                             is_Null_raster = arcpy.sa.IsNull(input_raster)
                             is_Null_raster.save(is_Null)
 
                            # Con
-                            con_raster = os.path.join(scratch_ws, "con_raster")
-                            if arcpy.Exists(con_raster):
-                                arcpy.Delete_management(con_raster)
+                            if use_in_memory:
+                                con_raster = "in_memory/con_raster"
+                            else:
+                                con_raster = os.path.join(scratch_ws, "con_raster")
+                                if arcpy.Exists(con_raster):
+                                    arcpy.Delete_management(con_raster)
                             temp_con_raster = arcpy.sa.Con(is_Null, interpolated_raster, input_raster)
                             temp_con_raster.save(con_raster)
 
@@ -353,9 +408,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             # 8. focal stats on raster to smooth?
 
                             # 9. copy raster to geotiff
-                            con_raster_tif = os.path.join(tiff_directory, "con_raster.tif")
-                            if arcpy.Exists(con_raster_tif):
-                                arcpy.Delete_management(con_raster_tif)
+                            if use_in_memory:
+                                con_raster_tif = "in_memory/con_raster_tif"
+                            else:
+                                con_raster_tif = os.path.join(tiff_directory, "con_raster.tif")
+                                if arcpy.Exists(con_raster_tif):
+                                    arcpy.Delete_management(con_raster_tif)
 
                             arcpy.CopyRaster_management(con_raster, con_raster_tif, "#", "#", "#", "#", "#",
                                                        "16_BIT_SIGNED")
@@ -378,9 +436,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             msg(msg_body)
 
                             # 11. TIN triangles
-                            con_triangles = os.path.join(scratch_ws, "con_triangles")
-                            if arcpy.Exists(con_triangles):
-                                arcpy.Delete_management(con_triangles)
+                            if use_in_memory:
+                                con_triangles = "in_memory/con_triangles"
+                            else:
+                                con_triangles = os.path.join(scratch_ws, "con_triangles")
+                                if arcpy.Exists(con_triangles):
+                                    arcpy.Delete_management(con_triangles)
 
                             arcpy.TinTriangle_3d(con_tin, con_triangles)
 
@@ -401,9 +462,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             CA.SmoothPolygon(os.path.join(raster_polygons), smooth_polygons, "PAEK", x, "",
                                             "FLAG_ERRORS")
 
-                            clip_smooth_triangles = os.path.join(scratch_ws, "clip_smooth_triangles")
-                            if arcpy.Exists(clip_smooth_triangles):
-                                arcpy.Delete_management(clip_smooth_triangles)
+                            if use_in_memory:
+                                clip_smooth_triangles = "in_memory/clip_smooth_triangles"
+                            else:
+                                clip_smooth_triangles = os.path.join(scratch_ws, "clip_smooth_triangles")
+                                if arcpy.Exists(clip_smooth_triangles):
+                                    arcpy.Delete_management(clip_smooth_triangles)
 
                             msg_body = create_msg_body("Clipping smooth edges...", 0, 0)
                             msg(msg_body)
@@ -414,9 +478,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             # clip to slightly lesser extent because of InterpolateShape fail.
                             area_extent = common_lib.get_extent_feature(scratch_ws, clip_smooth_triangles)
 
-                            extent_inward = os.path.join(scratch_ws, "inward_extent_buffer")
-                            if arcpy.Exists(extent_inward):
-                                arcpy.Delete_management(extent_inward)
+                            if use_in_memory:
+                                extent_inward = "in_memory/inward_extent_buffer"
+                            else:
+                                extent_inward = os.path.join(scratch_ws, "inward_extent_buffer")
+                                if arcpy.Exists(extent_inward):
+                                    arcpy.Delete_management(extent_inward)
 
                             buffer_in = 3
 
@@ -428,9 +495,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             sideType = "FULL"
                             arcpy.Buffer_analysis(area_extent, extent_inward, buffer_text, sideType)
 
-                            clip2_smooth_triangles = os.path.join(scratch_ws, "clip2_smooth_triangles")
-                            if arcpy.Exists(clip2_smooth_triangles):
-                                arcpy.Delete_management(clip2_smooth_triangles)
+                            if use_in_memory:
+                                clip2_smooth_triangles = "in_memory/clip2_smooth_triangles"
+                            else:
+                                clip2_smooth_triangles = os.path.join(scratch_ws, "clip2_smooth_triangles")
+                                if arcpy.Exists(clip2_smooth_triangles):
+                                    arcpy.Delete_management(clip2_smooth_triangles)
 
                             msg_body = create_msg_body("Clipping smooth edges a second time...", 0, 0)
                             msg(msg_body)
@@ -439,9 +509,12 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                             arcpy.Clip_analysis(clip_smooth_triangles, extent_inward, clip2_smooth_triangles)
 
                             # 13. interpolate on TIN
-                            clip_smooth_triangles3D = os.path.join(scratch_ws, "clip_smooth_triangles3D")
-                            if arcpy.Exists(clip_smooth_triangles3D):
-                                arcpy.Delete_management(clip_smooth_triangles3D)
+                            if use_in_memory:
+                                clip_smooth_triangles3D = "in_memory/clip_smooth_traingles3D"
+                            else:
+                                clip_smooth_triangles3D = os.path.join(scratch_ws, "clip_smooth_triangles3D")
+                                if arcpy.Exists(clip_smooth_triangles3D):
+                                    arcpy.Delete_management(clip_smooth_triangles3D)
 
                             msg_body = create_msg_body("Interpolating polygons on TIN", 0, 0)
                             msg(msg_body)
@@ -477,6 +550,9 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                                 arcpy.AddWarning("Can't find: " + floodSymbologyLayer + ". Symbolize features by error attribute to see data errors.")
 
                             arcpy.AddMessage("Results written to: " + output_polygons)
+
+                            if use_in_memory:
+                                arcpy.Delete_management("in_memory")
 
                             if DeleteIntermediateData:
                                 fcs = common_lib.listFcsInGDB(scratch_ws)

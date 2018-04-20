@@ -136,7 +136,7 @@ def main():
             input_source = arcpy.GetParameter(0)
             no_flood_value = arcpy.GetParameterAsText(1)
             baseline_elevation_raster = arcpy.GetParameter(2)
-            baseline_elevation_value = arcpy.GetParameter(3)
+            baseline_elevation_value = arcpy.GetParameterAsText(3)
             output_features = arcpy.GetParameterAsText(4)
 
             # script variables
@@ -189,7 +189,7 @@ def main():
                                         baseline_elevation_raster=full_path_baseline_raster,
                                         baseline_elevation_value=baseline_elevation_value,
                                         outward_buffer=0,
-                                        output_polygons=output_features, debug=0)
+                                        output_polygons=output_features, debug=debugging)
 
             # create layer, set layer file
             # apply transparency here // checking if symbology layer is present

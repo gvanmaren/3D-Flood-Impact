@@ -2,7 +2,7 @@ import arcpy
 import time
 import os
 
-import sys
+import re
 import scripts.common_lib as common_lib
 from scripts.common_lib import create_msg_body, msg, trace
 from scripts.settings import *
@@ -89,6 +89,8 @@ def set_value(input_source, no_flood_value, flood_elevation_value, output_raster
         scratch_ws = common_lib.create_gdb(home_directory, "Intermediate.gdb")
         arcpy.env.workspace = scratch_ws
         arcpy.env.overwriteOutput = True
+
+        flood_elevation_value = float(re.sub("[,.]", ".", flood_elevation_value))
 
         common_lib.set_up_logging(log_directory, TOOLNAME)
         start_time = time.clock()
