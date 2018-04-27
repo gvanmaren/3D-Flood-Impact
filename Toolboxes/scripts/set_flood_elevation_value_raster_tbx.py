@@ -17,12 +17,12 @@
 
 import arcpy
 import importlib
-import scripts.set_flood_elevation_value_raster as set_flood_elevation_value_raster
+import set_flood_elevation_value_raster
 importlib.reload(set_flood_elevation_value_raster)
-import scripts.common_lib as common_lib
+import common_lib
 importlib.reload(common_lib)  # force reload of the module
 import time
-from scripts.common_lib import create_msg_body, msg, trace
+from common_lib import create_msg_body, msg, trace
 
 # debugging switches
 debugging = 0

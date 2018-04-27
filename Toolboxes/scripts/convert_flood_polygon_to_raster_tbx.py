@@ -1,6 +1,6 @@
 # -------------------------------------------------------------------------------
-# Name:        set_flood_elevation_value_polygon_tbx.py
-# Purpose:     wrapper for set_flood_elevation_value_polygon.py
+# Name:        convert_flood_polygon_to_raster_tbx.py
+# Purpose:     wrapper for convert_flood_polygon_to_raster.py
 #
 # Author:      Gert van Maren
 #
@@ -17,8 +17,8 @@
 
 import arcpy
 import importlib
-import set_flood_elevation_value_polygon
-importlib.reload(set_flood_elevation_value_polygon)
+import convert_flood_polygon_to_raster
+importlib.reload(convert_flood_polygon_to_raster)
 import common_lib
 importlib.reload(common_lib)  # force reload of the module
 import time
@@ -37,10 +37,9 @@ else:
     verbose = 0
     in_memory_switch = False
 
-
 # constants
 ERROR = "error"
-TOOLNAME = "SetFloodElevationValueForPolygon"
+TOOLNAME = "ConvertFloodPolygonToRaster"
 WARNING = "warning"
 FLOODELEV = "flood_elevation"
 
@@ -137,6 +136,8 @@ def main():
             input_source = arcpy.GetParameter(0)
             flood_elevation_attribute = arcpy.GetParameter(1)
             default_flood_elevation_value = arcpy.GetParameterAsText(2)
+            output_raster = arcpy.GetParameterAsText(3)
+            cell_size = arcpy.GetParameterAsText(4)
 
             # script variables
             aprx = arcpy.mp.ArcGISProject("CURRENT")
@@ -151,7 +152,8 @@ def main():
             input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Baltimore.gdb\test_area1_slr6ft_pol'
             flood_elevation_attribute = FLOODELEV
             default_flood_elevation_value = 6
-
+            output_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Testing.gdb\\PolygonRaster'
+            cell_size = 10
             home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact'
             layer_directory = home_directory + "\\layer_files"
             rule_directory = home_directory + "\\rule_packages"
@@ -172,23 +174,30 @@ def main():
 
         desc = arcpy.Describe(input_source)
 
-        success = set_flood_elevation_value_polygon.set_value(input_source=full_path_source,
+        output = convert_flood_polygon_to_raster.convert(input_source=full_path_source,
                                     flood_elevation_attribute=flood_elevation_attribute,
                                     esri_flood_elevation_attribute = FLOODELEV,
-                                    default_flood_elevation_value=default_flood_elevation_value, debug=0)
+                                    default_flood_elevation_value=default_flood_elevation_value,
+                                    output_raster=output_raster,
+                                    cell_size=cell_size,
+                                    debug=debugging)
 
         end_time = time.clock()
 
-        if success:
-            msg_body = create_msg_body("set_flood_elevation_value_tbx_polygon completed successfully.", start_time, end_time)
+        if output:
+            if arcpy.Exists(output):
+                msg_body = create_msg_body("convert_flood_polygon_to_raster_tbx completed successfully.", start_time, end_time)
+                msg(msg_body)
+            else:
+                msg_body = create_msg_body("error in convert_flood_polygon_to_raster_tbx.", start_time, end_time)
+                msg(msg_body)
         else:
-            msg_body = create_msg_body("error in set_flood_elevation_value_tbx_polygon.", start_time, end_time)
+            msg_body = create_msg_body("error in convert_flood_polygon_to_raster_tbx.", start_time, end_time)
+            msg(msg_body)
 
         arcpy.ClearWorkspaceCache_management()
 
         # end main code
-
-        msg(msg_body)
 
     except LicenseError3D:
         print("3D Analyst license is unavailable")

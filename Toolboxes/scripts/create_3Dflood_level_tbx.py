@@ -17,12 +17,12 @@
 
 import arcpy
 import importlib
-import scripts.create_3Dflood_level as create_3Dflood_level
+import create_3Dflood_level
 importlib.reload(create_3Dflood_level)
-import scripts.common_lib as common_lib
+import common_lib
 importlib.reload(common_lib)  # force reload of the module
 import time
-from scripts.common_lib import create_msg_body, msg, trace
+from common_lib import create_msg_body, msg, trace
 
 # debugging switches
 debugging = 0

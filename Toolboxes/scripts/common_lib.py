@@ -627,6 +627,52 @@ def check_null_in_fields(cn_table, cn_field_list, error, debug):
                 pass
 
 
+def check_same_spatial_reference(input_list, featureclass_list):
+    try:
+        we_fail = 0
+
+        base_sr = arcpy.Describe(input_list[0]).spatialReference
+        base_linear_unit = base_sr.linearUnitName
+        base_Zunit = get_z_unit(input_list[0], 0)
+
+        one_list = input_list + featureclass_list
+        for f in one_list:
+            if arcpy.Exists(f):
+                sr = arcpy.Describe(f).spatialReference
+
+                if sr.name != base_sr.name:
+                    arcpy.AddMessage(get_name_from_feature_class(f) + " has different spatial reference " + sr.name + " than " + get_name_from_feature_class(input_list[0]))
+                    we_fail = 1
+                    break
+                else:
+                    if sr.linearUnitName != base_linear_unit:
+                        arcpy.AddMessage(get_name_from_feature_class(
+                            f) + " has different linear units " + sr.linearUnitName + " than " + get_name_from_feature_class(input_list[0]))
+                        we_fail = 1
+                        break
+                    else:
+                        if get_z_unit(f, 0) != base_Zunit:
+                            we_fail = 1
+                            arcpy.AddMessage(get_name_from_feature_class(f) + " has different spatial reference or units than " + get_name_from_feature_class(input_list[0]))
+                            break
+        return we_fail
+
+    except arcpy.ExecuteWarning:
+        print((arcpy.GetMessages(1)))
+        arcpy.AddWarning(arcpy.GetMessages(1))
+
+    except arcpy.ExecuteError:
+        print((arcpy.GetMessages(2)))
+        arcpy.AddError(arcpy.GetMessages(2))
+
+    # Return any other type of error
+    except:
+        # By default any other errors will be caught here
+        #
+        e = sys.exc_info()[1]
+        print((e.args[0]))
+        arcpy.AddError(e.args[0])
+
 def check_fields(cf_table, cf_field_list, error, debug):
     try:
         if debug == 1:

@@ -1,7 +1,6 @@
 import arcpy
 import time
 import os
-
 import re
 import common_lib
 from common_lib import create_msg_body, msg, trace
@@ -51,7 +50,7 @@ class FunctionError(Exception):
 
 # used functions
 
-def set_value(input_source, no_flood_value, flood_elevation_value, output_raster, debug):
+def convert(input_source, flood_elevation_attribute, esri_flood_elevation_attribute, default_flood_elevation_value, output_raster, cell_size, debug):
     try:
         # Get Attributes from User
         if debug == 0:
@@ -72,25 +71,39 @@ def set_value(input_source, no_flood_value, flood_elevation_value, output_raster
             in_memory_switch = True
         else:
             # debug
-            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\c2ft_inundation_Clip'
-            output_raster = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Testing.gdb\RasterValue'
-            no_flood_value = "0"  # value or "NoData"
-            flood_elevation_value = 8
+            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Baltimore.gdb\test_area1_slr6ft_pol'
+            flood_elevation_attribute = "my_elev"
+            esri_flood_elevation_attribute = "flood_elevation"
+            default_flood_elevation_value = 6
+            output_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Testing.gdb\\PolygonRaster'
+            cell_size = 10
             home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact'
+            tiff_directory = home_directory + "\\Tiffs"
+            tin_directory = home_directory + "\\Tins"
+            scripts_directory = home_directory + "\\Scripts"
+            rule_directory = home_directory + "\\rule_packages"
             log_directory = home_directory + "\\Logs"
-            layer_directory = home_directory + "\\LayerFiles"
-            project_ws = home_directory + "\\Testing.gdb"
+            layer_directory = home_directory + "\\layer_files"
+            project_ws = home_directory + "\\Results.gdb"
 
             enableLogging = False
             DeleteIntermediateData = True
             verbose = 1
             in_memory_switch = False
 
+        return_code = 0
         scratch_ws = common_lib.create_gdb(home_directory, "Intermediate.gdb")
         arcpy.env.workspace = scratch_ws
         arcpy.env.overwriteOutput = True
 
-        flood_elevation_value = float(re.sub("[,.]", ".", flood_elevation_value))
+        default_flood_elevation_value = float(re.sub("[,.]", ".", default_flood_elevation_value))
+        cell_size = float(re.sub("[,.]", ".", cell_size))
+
+        if not os.path.exists(tiff_directory):
+            os.makedirs(tiff_directory)
+
+        if not os.path.exists(tin_directory):
+            os.makedirs(tin_directory)
 
         common_lib.set_up_logging(log_directory, TOOLNAME)
         start_time = time.clock()
@@ -103,53 +116,35 @@ def set_value(input_source, no_flood_value, flood_elevation_value, output_raster
 
                 arcpy.AddMessage("Processing input source: " + common_lib.get_name_from_feature_class(input_source))
 
-                # use numeric value for determining non flooded areas: set these values to NoData. We need NoData for clippng later on
-                if no_flood_value != "NoData":
-                    if common_lib.is_number(no_flood_value):
-                        msg_body = create_msg_body(
-                            "Setting no flood value: " + no_flood_value + " to NoData in copy of " + common_lib.get_name_from_feature_class(
-                                input_source) + "...", 0, 0)
-                        msg(msg_body)
-                        null_for_no_flooded_areas_raster = os.path.join(scratch_ws, "null_for_flooded")
-                        if arcpy.Exists(null_for_no_flooded_areas_raster):
-                            arcpy.Delete_management(null_for_no_flooded_areas_raster)
+                common_lib.delete_add_field(input_source, esri_flood_elevation_attribute, "DOUBLE")
 
-                        whereClause = "VALUE = " + no_flood_value
+                # check attribute
+                if flood_elevation_attribute:
+                    if common_lib.check_fields(input_source, [flood_elevation_attribute], False, verbose) == 0:
+                        arcpy.CalculateField_management(input_source, esri_flood_elevation_attribute, "!" + flood_elevation_attribute + "!", "PYTHON_9.3")
+                        common_lib.set_null_or_negative_to_value_in_fields(input_source, [esri_flood_elevation_attribute],
+                                                                           [default_flood_elevation_value],
+                                                                           True, verbose)
+                        return_code = 1
+                    else:  # create a default attribute
+                        arcpy.CalculateField_management(input_source, esri_flood_elevation_attribute, default_flood_elevation_value, "PYTHON_9.3")
+                        return_code = 1
+                else:
+                    arcpy.CalculateField_management(input_source, esri_flood_elevation_attribute, default_flood_elevation_value, "PYTHON_9.3")
+                    return_code = 1
 
-                        # Execute SetNull
-                        outSetNull_temp = arcpy.sa.SetNull(input_source, input_source, whereClause)
-                        outSetNull_temp.save(null_for_no_flooded_areas_raster)
+                # convert here
+                assignmentType = "CELL_CENTER"
+                priorityField = "#"
 
-                        input_source = null_for_no_flooded_areas_raster
-
-                    else:
-                        raise ValueError
-
-                # check where there is IsNull and set the con values
-                is_Null = os.path.join(scratch_ws, "is_Null")
-                if arcpy.Exists(is_Null):
-                    arcpy.Delete_management(is_Null)
-
-                is_Null_raster = arcpy.sa.IsNull(input_source)
-                is_Null_raster.save(is_Null)
-
-                # Con
-                if arcpy.Exists(output_raster):
-                    arcpy.Delete_management(output_raster)
-                temp_con_raster = arcpy.sa.Con(is_Null, input_source, flood_elevation_value)
-                temp_con_raster.save(output_raster)
-
-                msg_body = create_msg_body(
-                            "Setting flood elevation value to: " + str(flood_elevation_value) + " in " + common_lib.get_name_from_feature_class(output_raster) + "...", 0, 0)
-                msg(msg_body)
-
-                end_time = time.clock()
-                msg_body = create_msg_body("Set Flood Elevation Value for Raster completed successfully.", start_time, end_time)
-
-                arcpy.ClearWorkspaceCache_management()
+                # Execute PolygonToRaster
+                arcpy.PolygonToRaster_conversion(input_source, esri_flood_elevation_attribute, output_raster,
+                                                 assignmentType, priorityField, cell_size)
 
                 return output_raster
 
+                end_time = time.clock()
+                msg_body = create_msg_body("set Flood Elevation Value For Polygon completed successfully.", start_time, end_time)
             else:
                 raise LicenseErrorSpatial
         else:
@@ -158,7 +153,6 @@ def set_value(input_source, no_flood_value, flood_elevation_value, output_raster
         arcpy.ClearWorkspaceCache_management()
 
         msg(msg_body)
-
 
     except NotProjected:
         print("Input data needs to be in a projected coordinate system. Exiting...")

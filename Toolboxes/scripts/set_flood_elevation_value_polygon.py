@@ -2,9 +2,9 @@ import arcpy
 import time
 import os
 import re
-import scripts.common_lib as common_lib
-from scripts.common_lib import create_msg_body, msg, trace
-from scripts.settings import *
+import common_lib
+from common_lib import create_msg_body, msg, trace
+from settings import *
 
 
 # error classes

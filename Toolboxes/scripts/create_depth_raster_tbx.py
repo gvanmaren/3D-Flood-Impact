@@ -17,12 +17,12 @@
 
 import arcpy
 import importlib
-import scripts.create_depth_raster as create_depth_raster
+import create_depth_raster as create_depth_raster
 importlib.reload(create_depth_raster)
-import scripts.common_lib as common_lib
+import common_lib as common_lib
 importlib.reload(common_lib)  # force reload of the module
 import time
-from scripts.common_lib import create_msg_body, msg, trace
+from common_lib import create_msg_body, msg, trace
 
 # debugging switches
 debugging = 0
@@ -149,7 +149,7 @@ def main():
         else:
             # debug
             input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Baltimore.gdb\WSE_01pct_test_area1'
-            depth_raster = "" #r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Baltimore.gdb\\CstlDpth_01pct_testarea1'
+            depth_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Baltimore.gdb\\CstlDpth_01pct_testarea1'
             depth_value = 10
             output_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Testing.gdb\\DepthElevationRaster'
 
@@ -175,13 +175,18 @@ def main():
 
         depth_elevation_raster = create_depth_raster.create_raster(input_source=full_path_source,
                                     depth_raster=depth_raster,
-                                    depth_value=depth_value,
+                                    depth_value=str(depth_value),
                                     output_raster=output_raster, debug=debugging)
 
-        if arcpy.Exists(depth_elevation_raster):
-            end_time = time.clock()
-            msg_body = create_msg_body("create_depth_raster_tbx completed successfully.", start_time, end_time)
-            msg(msg_body)
+        if depth_elevation_raster:
+            if arcpy.Exists(depth_elevation_raster):
+                end_time = time.clock()
+                msg_body = create_msg_body("create_depth_raster_tbx completed successfully.", start_time, end_time)
+                msg(msg_body)
+            else:
+                end_time = time.clock()
+                msg_body = create_msg_body("No output raster layer. Exiting...", start_time, end_time)
+                msg(msg_body, WARNING)
         else:
             end_time = time.clock()
             msg_body = create_msg_body("No output raster layer. Exiting...", start_time, end_time)

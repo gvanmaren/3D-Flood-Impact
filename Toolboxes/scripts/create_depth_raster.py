@@ -4,9 +4,9 @@ import os
 import re
 
 import sys
-import scripts.common_lib as common_lib
-from scripts.common_lib import create_msg_body, msg, trace
-from scripts.settings import *
+import common_lib
+from common_lib import create_msg_body, msg, trace
+from settings import *
 
 use_in_memory = True
 
@@ -56,6 +56,10 @@ class NoLayerFile(Exception):
 
 
 class FunctionError(Exception):
+    pass
+
+
+class MixOfSR(Exception):
     pass
 
 WARNING = "warning"
@@ -119,29 +123,34 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                     if depth_raster:
                         if arcpy.Exists(depth_raster):
 
-                            if use_in_memory:
-                                clip_raster = "in_memory/clip_copy"
-                            else:
-                                clip_raster = os.path.join(scratch_ws, "clip_copy")
-
-                                if arcpy.Exists(clip_raster):
-                                    arcpy.Delete_management(clip_raster)
-
-                            # check extents
-                            # clip terrain to extent
-                            msg_body = create_msg_body("Clipping depth raster to input flooding layer extent", 0, 0)
-                            msg(msg_body)
-
-                            arcpy.Clip_management(depth_raster, "#", clip_raster, input_source, "#", "#", "MAINTAIN_EXTENT")
-
-                            all_nodata = arcpy.GetRasterProperties_management(clip_raster, "ALLNODATA")[0]
-
-                            if int(all_nodata) == 1:
-                                msg_body = create_msg_body("Input rasters do not overlap.", 0, 0)
-                                msg(msg_body, WARNING)
+                            # Check if same spatial reference!!!
+                            if common_lib.check_same_spatial_reference([input_source], [depth_raster]) == 1:
                                 depth_raster = None
+                                raise MixOfSR
                             else:
-                                depth_raster = clip_raster
+                                if use_in_memory:
+                                    clip_raster = "in_memory/clip_copy"
+                                else:
+                                    clip_raster = os.path.join(scratch_ws, "clip_copy")
+
+                                    if arcpy.Exists(clip_raster):
+                                        arcpy.Delete_management(clip_raster)
+
+                                # check extents
+                                # clip terrain to extent
+                                msg_body = create_msg_body("Clipping depth raster to input flooding layer extent", 0, 0)
+                                msg(msg_body)
+
+                                arcpy.Clip_management(depth_raster, "#", clip_raster, input_source, "#", "#", "MAINTAIN_EXTENT")
+
+                                all_nodata = arcpy.GetRasterProperties_management(clip_raster, "ALLNODATA")[0]
+
+                                if int(all_nodata) == 1:
+                                    msg_body = create_msg_body("Input rasters do not overlap.", 0, 0)
+                                    msg(msg_body, WARNING)
+                                    depth_raster = None
+                                else:
+                                    depth_raster = clip_raster
                         else:
                             depth_raster = None
                             raise NoDepthRaster
@@ -199,7 +208,107 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                             msg_body = create_msg_body("Subtracting depth raster from input flooding raster.", 0, 0)
                             msg(msg_body)
 
-                            arcpy.Minus_3d(input_source, depth_raster, output_raster)
+                            if use_in_memory:
+                                minus_raster = "in_memory/minus_3D"
+                            else:
+                                minus_raster = os.path.join(scratch_ws, "minus_3D")
+                                if arcpy.Exists(minus_raster):
+                                    arcpy.Delete_management(minus_raster)
+
+                            arcpy.Minus_3d(input_source, depth_raster, minus_raster)
+
+                            if use_in_memory:
+                                raster_polygons = "in_memory/raster_polygons"
+                            else:
+                                raster_polygons = os.path.join(scratch_ws, "raster_polygons")
+                                if arcpy.Exists(raster_polygons):
+                                    arcpy.Delete_management(raster_polygons)
+
+                            out_geom = "POLYGON"  # output geometry type
+                            arcpy.RasterDomain_3d(minus_raster, raster_polygons, out_geom)
+
+                            # buffer it outwards first
+                            if use_in_memory:
+                                polygons_outward = "in_memory/outward_buffer"
+                            else:
+                                polygons_outward = os.path.join(scratch_ws, "outward_buffer")
+                                if arcpy.Exists(polygons_outward):
+                                    arcpy.Delete_management(polygons_outward)
+
+                            x = cell_size_source.getOutput(0)
+
+                            buffer_out = int(x)
+
+                            xy_unit = common_lib.get_xy_unit(minus_raster, 0)
+
+                            if xy_unit == "Feet":
+                                buffer_text = str(buffer_out) + " Feet"
+                            else:
+                                buffer_text = str(buffer_out) + " Meters"
+
+                            sideType = "FULL"
+                            arcpy.Buffer_analysis(raster_polygons, polygons_outward, buffer_text, sideType)
+
+                            # buffer it inwards so that we have a polygon only of the perimeter plus a 2 cells inward.
+                            if use_in_memory:
+                                polygons_inward = "in_memory/inward_buffer"
+                            else:
+                                polygons_inward = os.path.join(scratch_ws, "inward_buffer")
+                                if arcpy.Exists(polygons_inward):
+                                    arcpy.Delete_management(polygons_inward)
+
+                            x = cell_size_source.getOutput(0)
+
+                            buffer_in = 3 * int(x)
+
+                            xy_unit = common_lib.get_xy_unit(minus_raster, 0)
+
+                            if xy_unit == "Feet":
+                                buffer_text = "-" + str(buffer_in) + " Feet"
+                            else:
+                                buffer_text = "-" + str(buffer_in) + " Meters"
+
+                            sideType = "OUTSIDE_ONLY"
+                            arcpy.Buffer_analysis(polygons_outward, polygons_inward, buffer_text, sideType)
+
+                            msg_body = create_msg_body("Buffering depth edges...", 0, 0)
+                            msg(msg_body)
+
+                            if use_in_memory:
+                                extract_mask_raster = "in_memory/extract_mask"
+                            else:
+                                extract_mask_raster = os.path.join(scratch_ws, "extract_mask")
+                                if arcpy.Exists(extract_mask_raster):
+                                    arcpy.Delete_management(extract_mask_raster)
+
+                            extract_temp_raster = arcpy.sa.ExtractByMask(minus_raster, polygons_inward)
+                            extract_temp_raster.save(extract_mask_raster)
+
+                            if use_in_memory:
+                                minus_raster2 = "in_memory/minus_3D2"
+                            else:
+                                minus_raster2 = os.path.join(scratch_ws, "minus_3D2")
+                                if arcpy.Exists(minus_raster2):
+                                    arcpy.Delete_management(minus_raster2)
+
+                            arcpy.Minus_3d(minus_raster, depth_value, minus_raster2)
+
+                            if use_in_memory:
+                                mosaic_raster = "in_memory/mosaic"
+                            else:
+                                mosaic_raster = os.path.join(scratch_ws, "mosaic")
+                                if arcpy.Exists(mosaic_raster):
+                                    arcpy.Delete_management(mosaic_raster)
+
+                            listRasters = []
+                            listRasters.append(extract_mask_raster)
+                            listRasters.append(minus_raster2)
+
+                            desc = arcpy.Describe(listRasters[0])
+                            arcpy.MosaicToNewRaster_management(listRasters, os.path.dirname(output_raster), os.path.basename(output_raster),
+                                                               desc.spatialReference,
+                                                               "32_BIT_FLOAT", x, 1, "FIRST", "")
+
                         else:
                             arcpy.AddWarning(
                                 "Cell size of " + input_source + " is different than " + depth_raster + ". Exiting...")
@@ -214,6 +323,9 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
 
                 end_time = time.clock()
                 msg_body = create_msg_body("Set Flood Elevation Value for Raster completed successfully.", start_time, end_time)
+                msg(msg_body)
+
+                arcpy.ClearWorkspaceCache_management()
 
                 return output_raster
             else:
@@ -223,8 +335,12 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
 
         arcpy.ClearWorkspaceCache_management()
 
-        msg(msg_body)
 
+    except MixOfSR:
+        # The input has mixed SR
+        #
+        print(('Input data has mixed spatial references. Ensure all input is in the same spatial reference, including the same vertical units.'))
+        arcpy.AddError('Input data has mixed spatial references. Ensure all input is in the same spatial reference, including the same vertical units.')
 
     except NoInputLayer:
         print("Can't find Input layer. Exiting...")

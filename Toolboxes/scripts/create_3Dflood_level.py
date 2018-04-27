@@ -6,9 +6,9 @@ import re
 
 import sys
 import math
-import scripts.common_lib as common_lib
-from scripts.common_lib import create_msg_body, msg, trace
-from scripts.settings import *
+import common_lib
+from common_lib import create_msg_body, msg, trace
+from settings import *
 
 use_in_memory = True
 

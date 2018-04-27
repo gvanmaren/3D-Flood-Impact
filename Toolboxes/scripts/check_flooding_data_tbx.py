@@ -19,9 +19,9 @@ import arcpy
 import time
 import os
 import importlib
-import scripts.common_lib as common_lib
+import common_lib
 importlib.reload(common_lib)  # force reload of the module
-from scripts.common_lib import create_msg_body, msg, trace
+from common_lib import create_msg_body, msg, trace
 
 # debugging switches
 debugging = 0

@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<metadata xml:lang="en">
+  <Esri>
+    <CreaDate>20180130</CreaDate>
+    <CreaTime>12134900</CreaTime>
+    <ArcGISFormat>1.0</ArcGISFormat>
+    <SyncOnce>TRUE</SyncOnce>
+  </Esri>
+  <dataIdInfo>
+    <idCitation>
+      <resTitle>Create Flood Plan</resTitle>
+    </idCitation>
+    <idAbs>&lt;P&gt;Use this tool to create a flood plan for each flood stage.&lt;/P&gt;</idAbs>
+    <idPurp>These tasks can be used to create a flood impact plan for each flood stage in your community.</idPurp>
+    <searchKeys>
+      <keyword>Emergency Management</keyword>
+    </searchKeys>
+  </dataIdInfo>
+</metadata>
