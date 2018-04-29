@@ -148,8 +148,8 @@ def main():
 
         else:
             # debug
-            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Baltimore.gdb\WSE_01pct_test_area1'
-            depth_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Baltimore.gdb\\CstlDpth_01pct_testarea1'
+            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\slr6_raster_ProjectRaster'
+            depth_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\3DFloodImpact.gdb\\SLR_6ft_depth_test_area1_Pro'
             depth_value = 10
             output_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Testing.gdb\\DepthElevationRaster'
 

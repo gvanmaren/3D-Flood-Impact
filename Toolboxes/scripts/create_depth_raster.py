@@ -120,9 +120,22 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                 if arcpy.Exists(input_source):
                     arcpy.AddMessage("Processing input source: " + common_lib.get_name_from_feature_class(input_source))
 
+                    no_initial_depth_raster = False
+
+                    # create isnull from input source
+                    if use_in_memory:
+                        is_null = "in_memory/isnull_copy"
+                    else:
+                        is_null = os.path.join(scratch_ws, "isnull_copy")
+
+                        if arcpy.Exists(is_null):
+                            arcpy.Delete_management(is_null)
+
+                    is_Null_raster = arcpy.sa.IsNull(input_source)
+                    is_Null_raster.save(is_null)
+
                     if depth_raster:
                         if arcpy.Exists(depth_raster):
-
                             # Check if same spatial reference!!!
                             if common_lib.check_same_spatial_reference([input_source], [depth_raster]) == 1:
                                 depth_raster = None
@@ -151,43 +164,49 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                                     depth_raster = None
                                 else:
                                     depth_raster = clip_raster
+                                    no_initial_depth_raster = False
+
+                                    # if depth_value > 0:
+                                    #     # grab set all values > 2 to default depth value
+                                    #     if use_in_memory:
+                                    #         depth_push = "in_memory/depth_push"
+                                    #     else:
+                                    #         depth_push = os.path.join(scratch_ws, "depth_push")
+                                    #
+                                    #         if arcpy.Exists(depth_push):
+                                    #             arcpy.Delete_management(depth_push)
+                                    #
+                                    #     msg_body = create_msg_body("Pushing depth > 2 to: " + str(depth_value), 0, 0)
+                                    #     msg(msg_body)
+                                    #
+                                    #     depth_pushRaster = arcpy.sa.Con(clip_raster, depth_value, clip_raster, "VALUE > 2")
+                                    #     depth_pushRaster.save(depth_push)
+                                    #
+                                    #     depth_raster = depth_push
+                                    # else:
+                                    #     depth_raster = clip_raster
                         else:
                             depth_raster = None
                             raise NoDepthRaster
 
                     if not depth_raster:
                         if depth_value != 0:
+                            no_initial_depth_raster = True
+
                             arcpy.AddMessage("Using default depth value of: " + str(depth_value))
 
                             # create raster from default depth value
-
                             if use_in_memory:
-                                temp_copy = "in_memory/temp_copy"
                                 depth_raster = "in_memory/depth_copy"
-                                is_null = "in_memory/isnull_copy"
                             else:
-                                temp_copy = os.path.join(scratch_ws, "temp_copy")
-
-                                if arcpy.Exists(temp_copy):
-                                    arcpy.Delete_management(temp_copy)
-
                                 depth_raster = os.path.join(scratch_ws, "depth_copy")
 
                                 if arcpy.Exists(depth_raster):
                                     arcpy.Delete_management(depth_raster)
 
-                                is_null = os.path.join(scratch_ws, "isnull_copy")
-
-                                if arcpy.Exists(is_null):
-                                    arcpy.Delete_management(is_null)
-
                             # create raster from default depth value
                             msg_body = create_msg_body("Create depth raster from default depth value.", 0, 0)
                             msg(msg_body)
-                            arcpy.CopyRaster_management(input_source, temp_copy)
-
-                            is_Null_raster = arcpy.sa.IsNull(input_source)
-                            is_Null_raster.save(is_null)
 
                             outConRaster = arcpy.sa.Con(is_null, depth_value, depth_value)
                             outConRaster.save(depth_raster)
@@ -205,6 +224,23 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                             if arcpy.Exists(output_raster):
                                 arcpy.Delete_management(output_raster)
 
+                            # create raster from depth values
+                            if use_in_memory:
+                                clip_depth = "in_memory/clip_depth"
+                            else:
+                                clip_depth = os.path.join(scratch_ws, "clip_depth")
+
+                                if arcpy.Exists(clip_depth):
+                                    arcpy.Delete_management(clip_depth)
+
+                            # create raster from default depth value
+                            msg_body = create_msg_body("Create clip depth raster...", 0, 0)
+                            msg(msg_body)
+
+                            # grab depth elevation values where not null and null where is null (clip using flooding raster)
+                            outConRaster = arcpy.sa.Con(is_null, input_source, depth_raster)
+                            outConRaster.save(clip_depth)
+
                             msg_body = create_msg_body("Subtracting depth raster from input flooding raster.", 0, 0)
                             msg(msg_body)
 
@@ -215,8 +251,10 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                                 if arcpy.Exists(minus_raster):
                                     arcpy.Delete_management(minus_raster)
 
-                            arcpy.Minus_3d(input_source, depth_raster, minus_raster)
+                            # actual subtract
+                            arcpy.Minus_3d(input_source, clip_depth, minus_raster)
 
+                            # now we want just the outside cells (3x cellsize)
                             if use_in_memory:
                                 raster_polygons = "in_memory/raster_polygons"
                             else:
@@ -259,7 +297,7 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
 
                             x = cell_size_source.getOutput(0)
 
-                            buffer_in = 3 * int(x)
+                            buffer_in = 4 * int(x)
 
                             xy_unit = common_lib.get_xy_unit(minus_raster, 0)
 
@@ -284,6 +322,17 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                             extract_temp_raster = arcpy.sa.ExtractByMask(minus_raster, polygons_inward)
                             extract_temp_raster.save(extract_mask_raster)
 
+                            if no_initial_depth_raster == True:
+                                if use_in_memory:
+                                    plus_mask = "in_memory/plus_mask"
+                                else:
+                                    plus_mask = os.path.join(scratch_ws, "plus_mask")
+                                    if arcpy.Exists(plus_mask):
+                                        arcpy.Delete_management(plus_mask)
+
+                                arcpy.Plus_3d(extract_mask_raster, (depth_value - 1), plus_mask)
+                                extract_mask_raster = plus_mask
+
                             if use_in_memory:
                                 minus_raster2 = "in_memory/minus_3D2"
                             else:
@@ -291,9 +340,15 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                                 if arcpy.Exists(minus_raster2):
                                     arcpy.Delete_management(minus_raster2)
 
-                            arcpy.Minus_3d(minus_raster, depth_value, minus_raster2)
+                            # push depth elevation raster down by default depth value
+                            if depth_value > 0 and no_initial_depth_raster == False:
+                                msg_body = create_msg_body("Pushing inner depth down by: " + str(depth_value) + " to prevent z-fighting.", 0, 0)
+                                msg(msg_body)
+                                arcpy.Minus_3d(minus_raster, depth_value, minus_raster2)
+                            else:
+                                minus_raster2 = minus_raster
 
-                            if use_in_memory:
+                            if 0: #use_in_memory:
                                 mosaic_raster = "in_memory/mosaic"
                             else:
                                 mosaic_raster = os.path.join(scratch_ws, "mosaic")
@@ -305,10 +360,45 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                             listRasters.append(minus_raster2)
 
                             desc = arcpy.Describe(listRasters[0])
-                            arcpy.MosaicToNewRaster_management(listRasters, os.path.dirname(output_raster), os.path.basename(output_raster),
+
+                            # grab the original outside cells and the pushed down depth elevation raster
+                            arcpy.MosaicToNewRaster_management(listRasters, os.path.dirname(mosaic_raster), os.path.basename(mosaic_raster),
                                                                desc.spatialReference,
                                                                "32_BIT_FLOAT", x, 1, "FIRST", "")
 
+                            # now we do an isnull on raster domain poly
+                            assignmentType = "CELL_CENTER"
+                            priorityField = "#"
+
+                            # Execute PolygonToRaster
+                            calc_field = "value_field"
+                            common_lib.delete_add_field(raster_polygons, calc_field, "DOUBLE")
+                            arcpy.CalculateField_management(raster_polygons, calc_field, 1, "PYTHON_9.3")
+
+                            if use_in_memory:
+                                poly_raster = "in_memory/poly_raster"
+                            else:
+                                poly_raster = os.path.join(scratch_ws, "poly_raster")
+                                if arcpy.Exists(poly_raster):
+                                    arcpy.Delete_management(poly_raster)
+
+                            arcpy.PolygonToRaster_conversion(raster_polygons, calc_field, poly_raster, assignmentType, priorityField, x)
+
+                            # create isnull
+                            if use_in_memory:
+                                is_null2 = "in_memory/isnull_copy2"
+                            else:
+                                is_null2 = os.path.join(scratch_ws, "isnull_copy2")
+
+                                if arcpy.Exists(is_null2):
+                                    arcpy.Delete_management(is_null2)
+
+                            is_Null_raster2 = arcpy.sa.IsNull(poly_raster)
+                            is_Null_raster2.save(is_null2)
+
+                            # con on mosaic
+                            finalRaster = arcpy.sa.Con(is_null2, poly_raster, mosaic_raster)
+                            finalRaster.save(output_raster)
                         else:
                             arcpy.AddWarning(
                                 "Cell size of " + input_source + " is different than " + depth_raster + ". Exiting...")
