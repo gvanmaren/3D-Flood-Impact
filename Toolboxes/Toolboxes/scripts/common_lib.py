@@ -22,6 +22,8 @@ import sys
 import math
 from math import *
 
+from bisect import bisect_left
+
 # Constants
 NON_GP = "non-gp"
 ERROR = "error"
@@ -1027,10 +1029,10 @@ def get_z_unit(local_lyr, debug):
             unit_z = sr.VCS.linearUnitName
         else:
             unit_z = sr.linearUnitName
-            msg_body = ("Could not detect a vertical coordinate system for " + get_name_from_feature_class(local_lyr))
-            msg(msg_body)
-            msg_body = ("Using linear units instead.")
-            msg(msg_body)
+            # msg_body = ("Could not detect a vertical coordinate system for " + get_name_from_feature_class(local_lyr))
+            # msg(msg_body)
+            # msg_body = ("Using linear units instead.")
+            # msg(msg_body)
 
         if unit_z in ('Foot', 'Foot_US', 'Foot_Int'):
             local_unit = 'Feet'
@@ -1219,7 +1221,8 @@ def get_row_values_for_fields_with_floatvalue(lyr, table, fields, select_field, 
             if value == "no_expression":
                 expression = None
             else:
-                expression = arcpy.AddFieldDelimiters(table, select_field) + " = " + str(value)
+                expression = """{} = {}""".format(arcpy.AddFieldDelimiters(table, select_field), str(value))
+#                expression = arcpy.AddFieldDelimiters(table, select_field) + " = " + str(value)
 
             if check_fields(searchInput, check_list, return_error, 0) == 0:
                 with arcpy.da.SearchCursor(searchInput, fields, expression) as cursor:
@@ -1289,7 +1292,8 @@ def get_row_values_for_fields(lyr, table, fields, select_field, value):
             if value == "no_expression":
                 expression = None
             else:
-                expression = arcpy.AddFieldDelimiters(table, select_field) + " = '" + str(value) + "'"
+                expression = """{} = {}""".format(arcpy.AddFieldDelimiters(table, select_field), str(value))
+#                expression = arcpy.AddFieldDelimiters(table, select_field) + " = '" + str(value) + "'"
 
             if check_fields(searchInput, check_list, return_error, 0) == 0:
                 with arcpy.da.SearchCursor(searchInput, fields, expression) as cursor:
@@ -1633,6 +1637,48 @@ def calculate_footprint_area(ws, features, area_field, my_area_field, join_field
                 msg(msg_body)
 
 
+def list_rasters_in_gdb(gdb, debug):
+
+    if debug == 1:
+        msg("--------------------------")
+        msg("Executing list_rasters_in_gdb...")
+
+    start_time = time.clock()
+
+    try:
+        # list all rasters in a geodatabase, including inside Feature Datasets '''
+        arcpy.env.workspace = gdb
+
+        list = arcpy.ListRasters()
+
+        msg_prefix = "Function list_fcs_in_gdb completed successfully."
+        failed = False
+
+        return list
+
+    except:
+        line, filename, synerror = trace()
+        failed = True
+        msg_prefix = ""
+        raise FunctionError(
+            {
+                "function": "list_fcs_in_gdb",
+                "line": line,
+                "filename": filename,
+                "synerror": synerror,
+                "arc": str(arcpy.GetMessages(2))
+            }
+        )
+
+    finally:
+        end_time = time.clock()
+        msg_body = create_msg_body(msg_prefix, start_time, end_time)
+        if failed:
+            msg(msg_body, ERROR)
+        else:
+            if debug == 1:
+                msg(msg_body)
+
 def list_fcs_in_gdb(gdb, debug):
 
     if debug == 1:
@@ -1946,6 +1992,25 @@ def GetSlope(vect1, vect2):
         slope = 0
 
     return slope
+
+
+def find_closest(my_list, my_number):
+    """
+    Assumes myList is sorted. Returns closest value to myNumber.
+
+    If two numbers are equally close, return the smallest number.
+    """
+    pos = bisect_left(my_list, my_number)
+    if pos == 0:
+        return my_list[0], 0
+    if pos == len(my_list):
+        return my_list[-1], len(my_list) - 1
+    before = my_list[pos - 1]
+    after = my_list[pos]
+    if after - my_number < my_number - before:
+       return after, pos
+    else:
+       return before, pos - 1
 
 
 def set_data_paths_for_packaging(data_dir, gdb, fc, model_dir, pf, rule_dir, rule, layer_dir, lf):

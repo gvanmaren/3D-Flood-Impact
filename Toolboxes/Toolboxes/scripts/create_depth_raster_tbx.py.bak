@@ -1,6 +1,6 @@
 # -------------------------------------------------------------------------------
-# Name:        create_3Dflood_level_tbx.py
-# Purpose:     wrapper for create_3Dflood_level.py
+# Name:        create_depth_raster_tbx.py
+# Purpose:     wrapper for create_depth_raster.py
 #
 # Author:      Gert van Maren
 #
@@ -17,9 +17,9 @@
 
 import arcpy
 import importlib
-import create_3Dflood_level
-importlib.reload(create_3Dflood_level)
-import common_lib
+import create_depth_raster as create_depth_raster
+importlib.reload(create_depth_raster)
+import common_lib as common_lib
 importlib.reload(common_lib)  # force reload of the module
 import time
 from common_lib import create_msg_body, msg, trace
@@ -40,7 +40,7 @@ else:
 
 # constants
 ERROR = "error"
-TOOLNAME = "Create3DFloodLevelFromRaster"
+TOOLNAME = "CreateDepthRaster"
 WARNING = "warning"
 
 # error classes
@@ -134,10 +134,11 @@ def main():
         if debugging == 0:
             ## User input
             input_source = arcpy.GetParameter(0)
-            no_flood_value = arcpy.GetParameterAsText(1)
-            baseline_elevation_raster = arcpy.GetParameter(2)
-            baseline_elevation_value = arcpy.GetParameterAsText(3)
-            output_features = arcpy.GetParameterAsText(4)
+            depth_raster = arcpy.GetParameterAsText(1)
+            depth_value = arcpy.GetParameterAsText(2)
+            boundary_size = arcpy.GetParameterAsText(3)
+            boundary_offset = arcpy.GetParameterAsText(4)
+            output_raster = arcpy.GetParameterAsText(5)
 
             # script variables
             aprx = arcpy.mp.ArcGISProject("CURRENT")
@@ -146,15 +147,17 @@ def main():
             rule_directory = aprx.homeFolder + "\\rule_packages"
             log_directory = aprx.homeFolder + "\\Logs"
             project_ws = aprx.defaultGeodatabase
+
         else:
             # debug
-            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Baltimore.gdb\WSE_01pct_test_area1'
-            no_flood_value = "NoData"
-            baseline_elevation_raster = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Testing.gdb\base_elevation'
-            baseline_elevation_value = 0
-            output_features = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\FloodPolys'
+            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\slr6_raster_ProjectRaster'
+            depth_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\3DFloodImpact.gdb\\SLR_6ft_depth_test_area1_Pro'
+            depth_value = 10
+            boundary_size = 2
+            boundary_offset = 0.3
+            output_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Testing.gdb\\DepthElevationRaster'
 
-            home_directory = r'D:\Gert\Work\Esri\Solutions\LocalGovernment\DevelopmentCapacity\work1.4\DevelopmentCapacity'
+            home_directory = r'D:\\Gert\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact'
             layer_directory = home_directory + "\\layer_files"
             rule_directory = home_directory + "\\rule_packages"
             log_directory = home_directory + "\\Logs"
@@ -166,76 +169,46 @@ def main():
 
         start_time = time.clock()
 
-        if arcpy.CheckExtension("3D") == "Available":
-            arcpy.CheckOutExtension("3D")
-
-            # check if input exists
-            if arcpy.Exists(input_source):
-                full_path_source = common_lib.get_full_path_from_layer(input_source)
-            else:
-                raise NoRasterLayer
-
-            # check if input exists
-            if arcpy.Exists(baseline_elevation_raster):
-                full_path_baseline_raster = common_lib.get_full_path_from_layer(baseline_elevation_raster)
-            else:
-                full_path_baseline_raster = None
-
-            desc = arcpy.Describe(input_source)
-
-            flood_polygons = create_3Dflood_level.flood_from_raster(input_source=full_path_source,
-                                        input_type=desc.dataType,
-                                        no_flood_value=no_flood_value,
-                                        baseline_elevation_raster=full_path_baseline_raster,
-                                        baseline_elevation_value=baseline_elevation_value,
-                                        outward_buffer=0,
-                                        output_polygons=output_features, debug=debugging)
-
-            # create layer, set layer file
-            # apply transparency here // checking if symbology layer is present
-            z_unit = common_lib.get_z_unit(flood_polygons, verbose)
-
-            if z_unit == "Feet":
-                floodSymbologyLayer = layer_directory + "\\flood3Dfeet.lyrx"
-            else:
-                floodSymbologyLayer = layer_directory + "\\flood3Dmeter.lyrx"
-
-            output_layer = common_lib.get_name_from_feature_class(flood_polygons)
-            arcpy.MakeFeatureLayer_management(flood_polygons, output_layer)
-
-            if arcpy.Exists(floodSymbologyLayer):
-                arcpy.ApplySymbologyFromLayer_management(output_layer, floodSymbologyLayer)
-            else:
-                msg_body = create_msg_body("Can't find" + floodSymbologyLayer + " in " + layer_directory, 0, 0)
-                msg(msg_body, WARNING)
-
-            if output_layer:
-                if z_unit == "Feet":
-                    arcpy.SetParameter(5, output_layer)
-                else:
-                    arcpy.SetParameter(6, output_layer)
-            else:
-                raise NoOutput
-
-            end_time = time.clock()
-            msg_body = create_msg_body("create_3Dflood_level_tbx completed successfully.", start_time, end_time)
-
+        # check if input exists
+        if arcpy.Exists(input_source):
+            full_path_source = common_lib.get_full_path_from_layer(input_source)
         else:
-            raise LicenseError3D
+            raise NoRasterLayer
+
+        desc = arcpy.Describe(input_source)
+
+        depth_elevation_raster = create_depth_raster.create_raster(input_source=full_path_source,
+                                    depth_raster=depth_raster,
+                                    depth_value=str(depth_value),
+                                    boundary_size = str(boundary_size),
+                                    boundary_offset = str(boundary_offset),
+                                    output_raster=output_raster, debug=debugging)
+
+        if depth_elevation_raster:
+            if arcpy.Exists(depth_elevation_raster):
+                end_time = time.clock()
+                msg_body = create_msg_body("create_depth_raster_tbx completed successfully.", start_time, end_time)
+                msg(msg_body)
+            else:
+                end_time = time.clock()
+                msg_body = create_msg_body("No output raster layer. Exiting...", start_time, end_time)
+                msg(msg_body, WARNING)
+        else:
+            end_time = time.clock()
+            msg_body = create_msg_body("No output raster layer. Exiting...", start_time, end_time)
+            msg(msg_body, WARNING)
 
         arcpy.ClearWorkspaceCache_management()
 
         # end main code
-
-        msg(msg_body)
 
     except LicenseError3D:
         print("3D Analyst license is unavailable")
         arcpy.AddError("3D Analyst license is unavailable")
 
     except NoRasterLayer:
-        print("Can't find Raster layer. Exiting...")
-        arcpy.AddError("Can't find Raster layer. Exiting...")
+        print("No output Raster layer. Exiting...")
+        arcpy.AddError("No output raster layer. Exiting...")
 
     except NoOutput:
         print("Can't create output. Exiting...")

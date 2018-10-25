@@ -136,7 +136,9 @@ def main():
             input_source = arcpy.GetParameter(0)
             depth_raster = arcpy.GetParameterAsText(1)
             depth_value = arcpy.GetParameterAsText(2)
-            output_raster = arcpy.GetParameterAsText(3)
+            boundary_size = arcpy.GetParameterAsText(3)
+            boundary_offset = arcpy.GetParameterAsText(4)
+            output_raster = arcpy.GetParameterAsText(5)
 
             # script variables
             aprx = arcpy.mp.ArcGISProject("CURRENT")
@@ -148,12 +150,14 @@ def main():
 
         else:
             # debug
-            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\slr6_raster_ProjectRaster'
-            depth_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\3DFloodImpact.gdb\\SLR_6ft_depth_test_area1_Pro'
-            depth_value = 10
-            output_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Testing.gdb\\DepthElevationRaster'
+            input_source = r'D:\Temporary\Flood\3DFloodImpact\3DFloodImpact.gdb\slr_3ft_ProjectRaster'
+            depth_raster = r'D:\Temporary\Flood\3DFloodImpact\3DFloodImpact.gdb\MD_LWX_slr_depth_3ft_Project'
+            depth_value = 0
+            boundary_size = 1
+            boundary_offset = 0.2
+            output_raster = r'D:\Temporary\Flood\3DFloodImpact\3DFloodImpact.gdb\DepthElevationRaster_debug'
 
-            home_directory = r'D:\\Gert\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact'
+            home_directory = r'D:\Temporary\Flood\3DFloodImpact'
             layer_directory = home_directory + "\\layer_files"
             rule_directory = home_directory + "\\rule_packages"
             log_directory = home_directory + "\\Logs"
@@ -176,6 +180,8 @@ def main():
         depth_elevation_raster = create_depth_raster.create_raster(input_source=full_path_source,
                                     depth_raster=depth_raster,
                                     depth_value=str(depth_value),
+                                    boundary_size = str(boundary_size),
+                                    boundary_offset = str(boundary_offset),
                                     output_raster=output_raster, debug=debugging)
 
         if depth_elevation_raster:

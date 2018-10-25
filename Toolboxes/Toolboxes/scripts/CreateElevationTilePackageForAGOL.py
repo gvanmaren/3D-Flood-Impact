@@ -74,11 +74,11 @@ def GenerateLERCTilingScheme(input_layer, cache_directory, error):
     try:
         # variables
         method = "PREDEFINED"
-        numscales = "#"
+        numscales = "20"
         predefScheme = schemeDirectory+"\\ArcGIS_Online_Bing_Maps_Google_Maps.xml"
         outputTilingScheme = schemeDirectory+"\\"+getNameFromFeatureClass(input_layer)+"_tiling_lerc.xml"
-        scales = "#"
-        scaleType = "#"
+#        scales = "#"
+#        scaleType = "#"
         tileOrigin = "#"
         dpi = "96"
         tileSize = "256 x 256"
@@ -86,6 +86,13 @@ def GenerateLERCTilingScheme(input_layer, cache_directory, error):
         compQuality = "75"
         storageFormat = "COMPACT"
         lerc_error = error
+        scales = [1128.497176, 2256.994353, 4513.988705, 9027.977411, 18055.954822, 36111.909643, 72223.819286,
+              144447.638572,
+              288895.277144, 577790.554289, 1155581.108577, 2311162.217155, 4622324.434309, 9244648.868618,
+              18489297.737236,
+              36978595.474472, 73957190.948944, 147914381.897889, 295828763.795777, 591657527.591555]
+
+        scaleType = "SCALE"
 
         arcpy.GenerateTileCacheTilingScheme_management(input_layer, outputTilingScheme, method, numscales, predefScheme,
                                                         scales, scaleType, tileOrigin, dpi, tileSize, tileFormat, compQuality, storageFormat, lerc_error)
@@ -220,8 +227,8 @@ try:
     if os.path.exists(layerDirectory):
         common_lib.rename_file_extension(layerDirectory, ".txt", ".lyrx")
 
-    lercError = float(re.sub(",", ".", userLERC))
-    scaleLevel = re.sub(",", ".", scaleLevel)
+    lercError = float(re.sub("[,.]", ".", userLERC))
+    scaleLevel = re.sub("[,.]", ".", scaleLevel)
 
     outputTilingScheme = GenerateLERCTilingScheme(inputDataSource, cacheDirectory, lercError)
     arcpy.AddMessage("Created LERC Tiling Scheme with LERC error: "+str(lercError))

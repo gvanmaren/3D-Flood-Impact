@@ -1,16 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <metadata xml:lang="en">
   <Esri>
-    <CreaDate>20180313</CreaDate>
-    <CreaTime>11225800</CreaTime>
+    <CreaDate>20180130</CreaDate>
+    <CreaTime>12134900</CreaTime>
     <ArcGISFormat>1.0</ArcGISFormat>
     <SyncOnce>TRUE</SyncOnce>
   </Esri>
   <dataIdInfo>
     <idCitation>
-      <resTitle>3D Flood Impact</resTitle>
+      <resTitle>Assess 3D Flood Impact</resTitle>
     </idCitation>
-    <idAbs>&lt;P&gt;This ArcGIS Pro Task list assists you in visualizing, analyzing and publishing flooding in 3D for  your community. &lt;/P&gt;</idAbs>
-    <idPurp>Welcome to this ArcGIS Pro Task list to assist you in visualizing, analyzing and publishing flooding in 3D for  your community. </idPurp>
+    <idAbs>&lt;P&gt;Use these tasks to assess the flood impact for each flood stage.&lt;/P&gt;</idAbs>
+    <idPurp>These tasks can be used to assess the impact of a flooding event in 3D for your community.</idPurp>
+    <searchKeys>
+      <keyword>Emergency Management</keyword>
+    </searchKeys>
   </dataIdInfo>
 </metadata>

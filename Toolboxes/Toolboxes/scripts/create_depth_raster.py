@@ -8,8 +8,6 @@ import common_lib
 from common_lib import create_msg_body, msg, trace
 from settings import *
 
-use_in_memory = True
-
 # error classes
 class NotProjected(Exception):
     pass
@@ -66,7 +64,7 @@ WARNING = "warning"
 
 # used functions
 
-def create_raster(input_source, depth_raster, depth_value, output_raster, debug):
+def create_raster(input_source, depth_raster, depth_value, boundary_size, boundary_offset, output_raster, debug):
     try:
         # Get Attributes from User
         if debug == 0:
@@ -87,7 +85,7 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
             in_memory_switch = True
         else:
             # debug
-            home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact'
+            home_directory = r'D:\Temporary\Flood\3DFloodImpact'
             tiff_directory = home_directory + "\\Tiffs"
             log_directory = home_directory + "\\Logs"
             layer_directory = home_directory + "\\LayerFiles"
@@ -104,8 +102,15 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
 
         # fail safe for Eurpose's comma's
         depth_value = float(re.sub("[,.]", ".", depth_value))
+        boundary_size = float(re.sub("[,.]", ".", boundary_size))
+        boundary_offset = float(re.sub("[,.]", ".", boundary_offset))
 
         bail = 0
+
+        if debug == 1:
+            use_in_memory = False
+        else:
+            use_in_memory = True
 
         common_lib.set_up_logging(log_directory, TOOLNAME)
         start_time = time.clock()
@@ -131,9 +136,12 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                         if arcpy.Exists(is_null):
                             arcpy.Delete_management(is_null)
 
+
+                    # check where we have NULL values
                     is_Null_raster = arcpy.sa.IsNull(input_source)
                     is_Null_raster.save(is_null)
 
+                    # if we have a depth raster as input: make sure it overlaps with input_source
                     if depth_raster:
                         if arcpy.Exists(depth_raster):
                             # Check if same spatial reference!!!
@@ -163,6 +171,7 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                                     msg(msg_body, WARNING)
                                     depth_raster = None
                                 else:
+                                    org_depth_raster = depth_raster
                                     depth_raster = clip_raster
                                     no_initial_depth_raster = False
 
@@ -189,6 +198,7 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                             depth_raster = None
                             raise NoDepthRaster
 
+                    # if we don't have a depth raster: crate one based on the  depth value
                     if not depth_raster:
                         if depth_value != 0:
                             no_initial_depth_raster = True
@@ -197,9 +207,9 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
 
                             # create raster from default depth value
                             if use_in_memory:
-                                depth_raster = "in_memory/depth_copy"
+                                depth_raster = "in_memory/depth_value_raster"
                             else:
-                                depth_raster = os.path.join(scratch_ws, "depth_copy")
+                                depth_raster = os.path.join(scratch_ws, "depth_value_raster")
 
                                 if arcpy.Exists(depth_raster):
                                     arcpy.Delete_management(depth_raster)
@@ -225,6 +235,35 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                                 arcpy.Delete_management(output_raster)
 
                             # create raster from depth values
+                            # adjust values that are less than 0.2
+                            if use_in_memory:
+                                depth_push = "in_memory/depth_boundary_push"
+                                depth_temp = "in_memory/depth_temp"
+                            else:
+                                depth_push = os.path.join(scratch_ws, "depth_boundary_push")
+
+                                if arcpy.Exists(depth_push):
+                                    arcpy.Delete_management(depth_push)
+
+                                depth_temp = os.path.join(scratch_ws, "depth_temp")
+
+                                if arcpy.Exists(depth_temp):
+                                    arcpy.Delete_management(depth_temp)
+
+                            msg_body = create_msg_body("Adjusting boundary values by: " + str(boundary_offset), 0, 0)
+                            msg(msg_body)
+
+                            # add boundary offset to depth raster
+                            arcpy.Plus_3d(depth_raster, boundary_offset, depth_temp)
+
+                            depth_raster_object = arcpy.sa.Raster(depth_raster)
+
+                            # for values less than 0.2 -> grab adjusted depth raster.
+                            depth_push_Boundary_Raster = arcpy.sa.Con(depth_raster_object < 0.2, depth_temp, depth_raster)
+                            depth_push_Boundary_Raster.save(depth_push)
+
+                            depth_raster = depth_push
+
                             if use_in_memory:
                                 clip_depth = "in_memory/clip_depth"
                             else:
@@ -254,7 +293,7 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                             # actual subtract
                             arcpy.Minus_3d(input_source, clip_depth, minus_raster)
 
-                            # now we want just the outside cells (3x cellsize)
+                            # now we want just the outside cells (1x cellsize)
                             if use_in_memory:
                                 raster_polygons = "in_memory/raster_polygons"
                             else:
@@ -273,8 +312,8 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                                 if arcpy.Exists(polygons_outward):
                                     arcpy.Delete_management(polygons_outward)
 
-                            x = cell_size_source.getOutput(0)
-
+                            # x = cell_size_source.getOutput(0)
+                            x = float(str(cell_size_source.getOutput(0)))
                             buffer_out = int(x)
 
                             xy_unit = common_lib.get_xy_unit(minus_raster, 0)
@@ -295,9 +334,10 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                                 if arcpy.Exists(polygons_inward):
                                     arcpy.Delete_management(polygons_inward)
 
-                            x = cell_size_source.getOutput(0)
+                            # x = cell_size_source.getOutput(0)
+                            x = float(str(cell_size_source.getOutput(0)))
 
-                            buffer_in = 4 * int(x)
+                            buffer_in = (boundary_size-1) + int(2*x)  # boundary is always 2 cellsizes / user can't go lower than 2.
 
                             xy_unit = common_lib.get_xy_unit(minus_raster, 0)
 
@@ -306,8 +346,18 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                             else:
                                 buffer_text = "-" + str(buffer_in) + " Meters"
 
-                            sideType = "OUTSIDE_ONLY"
+                            sideType = "FULL"
                             arcpy.Buffer_analysis(polygons_outward, polygons_inward, buffer_text, sideType)
+
+                            if use_in_memory:
+                                erase_polygons = "in_memory/erase"
+                            else:
+                                erase_polygons = os.path.join(scratch_ws, "erase")
+                                if arcpy.Exists(erase_polygons):
+                                    arcpy.Delete_management(erase_polygons)
+
+                            xyTol = "1 Meters"
+                            arcpy.Erase_analysis(polygons_outward, polygons_inward, erase_polygons)
 
                             msg_body = create_msg_body("Buffering depth edges...", 0, 0)
                             msg(msg_body)
@@ -319,7 +369,7 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                                 if arcpy.Exists(extract_mask_raster):
                                     arcpy.Delete_management(extract_mask_raster)
 
-                            extract_temp_raster = arcpy.sa.ExtractByMask(minus_raster, polygons_inward)
+                            extract_temp_raster = arcpy.sa.ExtractByMask(minus_raster, erase_polygons)
                             extract_temp_raster.save(extract_mask_raster)
 
                             if no_initial_depth_raster == True:
@@ -401,7 +451,7 @@ def create_raster(input_source, depth_raster, depth_value, output_raster, debug)
                             finalRaster.save(output_raster)
                         else:
                             arcpy.AddWarning(
-                                "Cell size of " + input_source + " is different than " + depth_raster + ". Exiting...")
+                                "Cell size of " + common_lib.get_name_from_feature_class(input_source) + " is different than " + org_depth_raster + ". Exiting...")
 
                             output_raster = None
 
