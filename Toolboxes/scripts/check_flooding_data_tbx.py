@@ -25,7 +25,7 @@ from common_lib import create_msg_body, msg, trace
 
 # debugging switches
 debugging = 0
-if debugging:
+if debugging == 1:
     enableLogging = True
     DeleteIntermediateData = False
     verbose = 1

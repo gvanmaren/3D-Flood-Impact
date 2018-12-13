@@ -96,6 +96,7 @@ def convert(input_source, flood_elevation_attribute, esri_flood_elevation_attrib
         arcpy.env.workspace = scratch_ws
         arcpy.env.overwriteOutput = True
 
+        # fail safe for Europese's comma's
         default_flood_elevation_value = float(re.sub("[,.]", ".", default_flood_elevation_value))
         cell_size = float(re.sub("[,.]", ".", cell_size))
 

@@ -227,6 +227,7 @@ try:
     if os.path.exists(layerDirectory):
         common_lib.rename_file_extension(layerDirectory, ".txt", ".lyrx")
 
+    # fail safe for Europese's comma's
     lercError = float(re.sub("[,.]", ".", userLERC))
     scaleLevel = re.sub("[,.]", ".", scaleLevel)
 

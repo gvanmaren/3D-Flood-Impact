@@ -153,7 +153,7 @@ def main():
             flood_elevation_attribute = FLOODELEV
             default_flood_elevation_value = 6
             output_raster = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Testing.gdb\\PolygonRaster'
-            cell_size = 10
+            cell_size = str(10)
             home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact'
             layer_directory = home_directory + "\\layer_files"
             rule_directory = home_directory + "\\rule_packages"

@@ -134,7 +134,7 @@ def main():
         if debugging == 0:
             ## User input
             input_source = arcpy.GetParameter(0)
-            no_flood_value =  arcpy.GetParameterAsText(1)
+            no_flood_value = arcpy.GetParameterAsText(1)
             flood_elevation_value = arcpy.GetParameterAsText(2)
             output_features = arcpy.GetParameterAsText(3)
 
@@ -149,7 +149,7 @@ def main():
         else:
             # debug
             input_source = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\3DFloodImpact.gdb\\WSE_01pct_testarea2'
-            flood_elevation_value = 5
+            flood_elevation_value = "5"
             no_flood_value = "NoData"
             output_features = r'D:\\Gert\\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact\\Testing.gdb\\FloodElevationRaster'
 
