@@ -27,6 +27,7 @@ if 'common_lib' in sys.modules:
     importlib.reload(common_lib)  # force reload of the module
 import time
 from common_lib import create_msg_body, msg, trace
+import re
 
 # debugging switches
 debugging = 0
@@ -57,6 +58,10 @@ class NoLayerFile(Exception):
 
 
 class NoPointLayer(Exception):
+    pass
+
+
+class NoFeatureLayer(Exception):
     pass
 
 
@@ -115,7 +120,7 @@ def main():
             inDepthGDB = arcpy.GetParameterAsText(4)
             inFeature = arcpy.GetParameterAsText(5)
             featureFID = arcpy.GetParameterAsText(6)
-            bufferDistance = arcpy.GetParameter(7)
+            bufferDistance = arcpy.GetParameterAsText(7)
             tolerance = arcpy.GetParameter(8)
             inDEM = arcpy.GetParameterAsText(9)
             inLossTable = arcpy.GetParameterAsText(10)
@@ -140,37 +145,37 @@ def main():
             lossField = arcpy.GetParameter(27)
         else:
             # debug
-            riskType = "FEMA Flood"  # "NOAA Sea Level Rise", "FEMA Flood", "Tidal Flood", "Storm Surge", "Riverine Flood"
+            riskType = "NOAA Sea Level Rise"  # "NOAA Sea Level Rise", "FEMA Flood Percent", "FEMA Flood Annual", "Tidal Flood", "Storm Surge", "Riverine Flood"
             inWaterSurfaceType = ""  # "Raster", "Multipatch"
             #inSurfaceGDB = r'D:\Gert\Work\Esri\Demos\ArcGISPro\ArcGISPro1_3\Queenstown\Flooding\Flood_elevation_3D.gdb'
-            #inSurfaceGDB = r'D:\Temporary\Flood\3DFloodImpact\SampleFloodData\Results_NOAA_SeaLevelRise_3D.gdb'
-            inSurfaceGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\3DFloodImpact\SampleFloodData\FEMA_WSE.gdb'
+            #inSurfaceGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\SampleFloodData\Results_NOAA_SeaLevelRise_3D.gdb'
+            inSurfaceGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\SampleFloodData\Results_NOAA_SeaLevelRise_3D.gdb'
+#            inSurfaceGDB = r''
             #inDepthGDB = r'D:\Gert\Work\Esri\Demos\ArcGISPro\ArcGISPro1_3\Queenstown\Flooding\Flooding_depth.gdb'
-            #inDepthGDB = r'D:\Temporary\Flood\3DFloodImpact\SampleFloodData\NOAA_SeaLevelRise_Depth.gdb'
-            inDepthGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\3DFloodImpact\SampleFloodData\FEMA_CstDpth.gdb'
+            inDepthGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\SampleFloodData\NOAA_SeaLevelRise_Depth_Prj.gdb'
+            #inDepthGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\SampleFloodData\FEMA_CstDpth_1.gdb'
             #inFeature = r'D:\Gert\Work\Esri\Demos\ArcGISPro\ArcGISPro1_3\Queenstown\Flooding\Results.gdb\Qt_Buildings_all_t1'
             #            inFeature = r'D:\Temporary\Flood\3DFloodImpact\SampleFloodData\Baltimore.gdb\Buildings_3D'
-            inFeature = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\3DFloodImpact\SampleFloodData\Baltimore.gdb\Buildings_3D'
+            inFeature = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\Testing.gdb\Buildings_3D_noflood'
 
-            #featureFID = "OBJECTID"
-            featureFID = "BuildingFID"
+            featureFID = "OBJECTID"
+            #featureFID = "BuildingFID"
 
             #            inSurfaceGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\FloodImpactPlanning_old\TestData\NOAA_SeaLevelRise1.gdb'
             #            inDepthGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\FloodImpactPlanning_old\TestData\NOAA_SeaLevelRise_Depth1.gdb'
             #            inFeature = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\FloodImpactPlanning_old\Testing.gdb\test1000_mp_proj'
             #            featureFID = "BuildingFID"
-            bufferDistance = 0
+            bufferDistance = "0"
             tolerance = 1
             #            inDEM = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Baltimore.gdb\Sandy_Baltimore_dtm_2m_test_area1_1900'
             inDEM = ""
             #            inLossTable=r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\3DFloodImpact\tables\fema_loss_potential.xls\fema_loss_potential$'
-            inLossTable = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\3DFloodImpact\tables\fema_loss_potential_meter.xls\fema_loss_potential$'
+            inLossTable = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\tables\fema_loss_potential_feet.xls\fema_loss_potential$'
             #            inLossTable = r'D:\Temp\Flood\3DFloodImpact\tables\fema_loss_potential_ft.xls\fema_loss_potential$'
 
-            outTable = r'D:\Gert\Work\Esri\Demos\ArcGISPro\ArcGISPro1_3\Queenstown\Flooding\Results.gdb\flood_exposure_test'
+            outTable = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\Testing.gdb\flood_exposure_test'
             #            outTable = r'D:\Temporary\Flood\3DFloodImpact\3DFloodImpact.gdb\flood_exposure'
 
-            isPercentFlood = True
             areaField = True
             minField = True
             maxField = True
@@ -188,6 +193,9 @@ def main():
             GroundSTDField = False
             lossField = True
 
+        # fail safe for Europese's comma's
+        bufferDistance = float(re.sub("[,.]", ".", bufferDistance))
+
         start_time = time.clock()
 
         esri_featureID = "copy_featureID"
@@ -195,21 +203,13 @@ def main():
         # check if input exists
         if arcpy.Exists(inDepthGDB):
             if arcpy.Exists(inFeature):
-
-                # create string field for featureFID. otherwise resulting raster won't be integer
-                common_lib.delete_add_field(inFeature, esri_featureID, "TEXT")
-                arcpy.CalculateField_management(inFeature, esri_featureID, "!" + featureFID + "!", "PYTHON_9.3")
-
-                # make the featureFID the text version of featureFID
-                featureFID = esri_featureID
-
-                success = attribute_exposure.attribute_feature(riskType=riskType,
-                                                               isPercentFlood=isPercentFlood,
+                success, copy_inFeature, stats_table = attribute_exposure.attribute_feature(riskType=riskType,
                                                                inWaterSurfaceType="",
                                                                inSurfaceGDB=inSurfaceGDB,
                                                                inDepthGDB=inDepthGDB,
                                                                inFeature=inFeature,
                                                                featureFID=featureFID,
+                                                               esri_featureID=esri_featureID,
                                                                bufferDistance=bufferDistance,
                                                                tolerance=1,
                                                                inDEM=inDEM,
@@ -236,15 +236,14 @@ def main():
                 end_time = time.clock()
 
                 if success:
-                    if arcpy.Exists(outTable):
-
+                    if arcpy.Exists(outTable) and arcpy.Exists(copy_inFeature) and arcpy.Exists(stats_table):
                         # join risk table to input feature class
                         arcpy.AddMessage("Joining " + outTable + " to " + common_lib.get_name_from_feature_class(inFeature) + ".")
 
-                        join_layer = common_lib.get_name_from_feature_class(inFeature) + "_temp"
-                        arcpy.MakeFeatureLayer_management(inFeature, join_layer)
+                        join_layer = common_lib.get_name_from_feature_class(copy_inFeature) + "_temp"
+                        arcpy.MakeFeatureLayer_management(copy_inFeature, join_layer)
 
-                        arcpy.AddJoin_management(join_layer, featureFID, outTable, featureFID)
+                        arcpy.AddJoin_management(join_layer, esri_featureID, outTable, esri_featureID)
 
                         table_gdb = common_lib.get_work_space_from_feature_class(outTable, "yes")
 
@@ -267,8 +266,12 @@ def main():
                         output_layer = common_lib.get_name_from_feature_class(join_copy)
                         arcpy.MakeFeatureLayer_management(join_copy, output_layer)
 
-                        if output_layer:
+                        output_layer2 = common_lib.get_name_from_feature_class(stats_table)
+                        arcpy.MakeFeatureLayer_management(stats_table, output_layer2)
+
+                        if output_layer and output_layer2:
                             arcpy.SetParameter(28, output_layer)
+                            arcpy.SetParameter(29, output_layer2)
                         else:
                             raise NoOutput
 
@@ -293,6 +296,8 @@ def main():
 
                 msg(msg_body)
 
+            else:
+                raise NoFeatureLayer
         else:
             raise NoDepthGBD
 
@@ -304,9 +309,9 @@ def main():
         print("Can't find attachment points layer. Exiting...")
         arcpy.AddError("Can't find attachment points layer. Exiting...")
 
-    except NoPointLayer:
-        print("More than 1 guide line selected. Please select only 1 guide line. Exiting...")
-        arcpy.AddError("More than 1 guide line selected. Please select only 1 guide line. Exiting...")
+    except NoFeatureLayer:
+        print("Can't find feature layer. Exiting...")
+        arcpy.AddError("Can't find feature layer. Exiting...")
 
     except NoDepthGBD:
         print("Can't find Depth GDB. Exiting...")

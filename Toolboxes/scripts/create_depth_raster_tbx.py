@@ -179,9 +179,9 @@ def main():
 
         depth_elevation_raster = create_depth_raster.create_raster(input_source=full_path_source,
                                     depth_raster=depth_raster,
-                                    depth_value=str(depth_value),
-                                    boundary_size = str(boundary_size),
-                                    boundary_offset = str(boundary_offset),
+                                    depth_value=depth_value,
+                                    boundary_size=boundary_size,
+                                    boundary_offset=boundary_offset,
                                     output_raster=output_raster, debug=debugging)
 
         if depth_elevation_raster:

@@ -25,7 +25,7 @@ import time
 from common_lib import create_msg_body, msg, trace
 
 # debugging switches
-debugging = 1
+debugging = 0
 if debugging:
     enableLogging = True
     DeleteIntermediateData = False
@@ -152,9 +152,9 @@ def main():
             depth_raster = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\data\Vancouver\3DFloodImpact\depth_rasters.gdb\I_0_5pct_nodata_clip_utm'
             dtm = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\data\Vancouver\3DFloodImpact\Surrey_Buildings.gdb\DEM'
             smooth_factor = 30
-            output_raster = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\Testing.gdb\\FloodElevationRaster'
+            output_raster = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\Testing.gdb\FloodElevationRaster'
 
-            home_directory = r'D:\\Gert\Work\\Esri\\Solutions\\3DFloodImpact\\work2.1\\3DFloodImpact'
+            home_directory = r'D:\\Gert\Work\\Esri\\Solutions\\3DFloodImpact\\work2.2.3\\3DFloodImpact'
             layer_directory = home_directory + "\\layer_files"
             rule_directory = home_directory + "\\rule_packages"
             log_directory = home_directory + "\\Logs"
@@ -174,7 +174,7 @@ def main():
                                                 use_in_memory=in_memory_switch,
                                                 debug=debugging)
 
-            if arcpy.Exists(flood_elevation_raster):
+            if arcpy.Exists(output_raster):
                     # output_layer = common_lib.get_name_from_feature_class(flood_elevation_raster)
                     # arcpy.MakeRasterLayer_management(flood_elevation_raster, output_layer)
                     #
