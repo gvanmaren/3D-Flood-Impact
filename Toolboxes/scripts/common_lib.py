@@ -1,5 +1,5 @@
 # -------------------------------------------------------------------------------
-# Name:        CommonLib
+# Name:        common_lib
 # Purpose:     Contains common functions
 #
 # Author:      Gert van Maren
@@ -18,6 +18,7 @@ import time
 import traceback
 import datetime
 import logging
+import csv
 import sys
 import math
 from math import *
@@ -856,6 +857,32 @@ def get_fields_by_wildcard(feature_class, wild_card, fields_to_skip):
         arcpy.AddError(e.args[0])
 
 
+def get_fields_list(feature_class):
+    try:
+        real_fields = arcpy.ListFields(feature_class)
+        field_list = []
+
+        for f in real_fields:
+            field_list.append(f.name)
+
+        return field_list
+
+    except arcpy.ExecuteWarning:
+        print((arcpy.GetMessages(1)))
+        arcpy.AddWarning(arcpy.GetMessages(1))
+
+    except arcpy.ExecuteError:
+        print((arcpy.GetMessages(2)))
+        arcpy.AddError(arcpy.GetMessages(2))
+
+    # Return any other type of error
+    except:
+        # By default any other errors will be caught here
+        #
+        e = sys.exc_info()[1]
+        print((e.args[0]))
+        arcpy.AddError(e.args[0])
+
 
 def copy_features_with_selected_attributes(ws, input_obj, output_obj, keep_fields_list, where_clause, debug):
     # Make an ArcGIS Feature class, containing only the fields
@@ -1029,10 +1056,10 @@ def get_z_unit(local_lyr, debug):
             unit_z = sr.VCS.linearUnitName
         else:
             unit_z = sr.linearUnitName
-            # msg_body = ("Could not detect a vertical coordinate system for " + get_name_from_feature_class(local_lyr))
-            # msg(msg_body)
-            # msg_body = ("Using linear units instead.")
-            # msg(msg_body)
+            msg_body = ("Could not detect a vertical coordinate system for " + get_name_from_feature_class(local_lyr))
+            msg(msg_body)
+            msg_body = ("Using linear units instead.")
+            msg(msg_body)
 
         if unit_z in ('Foot', 'Foot_US', 'Foot_Int'):
             local_unit = 'Feet'
@@ -1103,7 +1130,7 @@ def get_xy_unit(local_lyr, debug):
         msg_prefix = ""
         raise FunctionError(
             {
-                "function": "get_z_unit",
+                "function": "get_xy_unit",
                 "line": line,
                 "filename": filename,
                 "synerror": synerror,
@@ -2012,8 +2039,12 @@ def find_closest(my_list, my_number):
     else:
        return before, pos - 1
 
-
-def set_data_paths_for_packaging(data_dir, gdb, fc, model_dir, pf, rule_dir, rule, layer_dir, lf):
+def set_data_paths_for_packaging(data_dir, gdb, fc, model_dir, pf,
+                                    tiling_dir, scheme,
+                                    building_table_dir, table,
+                                    lidar_dir, las_file,
+                                    rule_dir, rule, layer_dir, lf,
+                                    task_dir, task_file):
     try:
         scriptPath = sys.path[0]
         thisFolder = os.path.dirname(scriptPath)
@@ -2024,11 +2055,23 @@ def set_data_paths_for_packaging(data_dir, gdb, fc, model_dir, pf, rule_dir, rul
         modelPath = os.path.join(thisFolder, model_dir)
         one_modelfile = os.path.join(modelPath, pf)
 
+        tilingPath = os.path.join(thisFolder, tiling_dir)
+        one_schemefile = os.path.join(tilingPath, scheme)
+
+        building_tablePath = os.path.join(thisFolder, building_table_dir)
+        one_tablefile = os.path.join(building_tablePath, table)
+
+        lidarPath = os.path.join(thisFolder, lidar_dir)
+        one_lasfile = os.path.join(lidarPath, las_file)
+
         rulePath = os.path.join(thisFolder, rule_dir)
         one_rulefile = os.path.join(rulePath, rule)
 
         layerPath = os.path.join(thisFolder, layer_dir)
         one_layerfile = os.path.join(layerPath, lf)
+
+        taskPath = os.path.join(thisFolder, task_dir)
+        one_taskfile = os.path.join(taskPath, task_file)
 
     except arcpy.ExecuteWarning:
         print((arcpy.GetMessages(1)))
@@ -2145,4 +2188,67 @@ def unitConversion(layer_unit, input_unit, debug):
             if debug == 1:
                 msg(msg_body)
 
+# get lidar class code - TEMPORARY until Pro 2.3
+def get_las_class_codes(lasd, outputdir):
+    try:
+        # Get LiDAR class codes
+        classCodes = []
 
+        lasStats = os.path.join(outputdir, 'lasStats_stats.csv')
+
+        if arcpy.Exists(lasStats):
+            arcpy.Delete_management(lasStats)
+
+        arcpy.LasDatasetStatistics_management(lasd, "OVERWRITE_EXISTING_STATS", lasStats, "DATASET", "COMMA",
+                                              "DECIMAL_POINT")
+
+        with open(lasStats, 'r') as f:
+            reader = csv.reader(f)
+
+            for row in reader:
+
+                if len(row) > 1 and row[1] == 'ClassCodes':
+                    classNum, className = row[0].split('_', 1)
+
+                    omitClassCodes = ['7', '12', '13', '14', '15', '16', '18']
+
+                    if classNum not in omitClassCodes:
+                        classCodes.append(int(classNum))
+
+        arcpy.AddMessage('Detected Class codes: {}'.format(classCodes))
+
+        arcpy.Delete_management(lasStats)
+
+        return classCodes
+
+    except arcpy.ExecuteError:
+        # Get the tool error messages
+        msgs = arcpy.GetMessages(2)
+        arcpy.AddError(msgs)
+    except Exception:
+        e = sys.exc_info()[1]
+        arcpy.AddMessage("Unhandled exception: " + str(e.args[0]))
+
+
+def get_num_selected(input_features):
+    try:
+        if is_layer(input_features) == 0:
+            count = 0
+        else:
+            num_features = int(arcpy.GetCount_management(get_full_path_from_layer(input_features)).getOutput(0))
+            num_selected = int(arcpy.GetCount_management(input_features).getOutput(0))
+
+            if num_selected == num_features:
+                count = 0
+            else:
+                count = num_selected
+
+        return count
+
+    except arcpy.ExecuteError:
+        # Get the tool error messages
+        msgs = arcpy.GetMessages(2)
+        arcpy.AddError(msgs)
+    except Exception:
+        e = sys.exc_info()[1]
+        arcpy.AddMessage("Unhandled exception: " + str(e.args[0]))

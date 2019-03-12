@@ -25,7 +25,7 @@ import time
 from common_lib import create_msg_body, msg, trace
 
 # debugging switches
-debugging = 0
+debugging = 1
 if debugging:
     enableLogging = True
     DeleteIntermediateData = False
@@ -137,7 +137,8 @@ def main():
             no_flood_value = arcpy.GetParameterAsText(1)
             baseline_elevation_raster = arcpy.GetParameter(2)
             baseline_elevation_value = arcpy.GetParameterAsText(3)
-            output_features = arcpy.GetParameterAsText(4)
+            smooth_factor = arcpy.GetParameter(4)
+            output_features = arcpy.GetParameterAsText(5)
 
             # script variables
             aprx = arcpy.mp.ArcGISProject("CURRENT")
@@ -148,13 +149,14 @@ def main():
             project_ws = aprx.defaultGeodatabase
         else:
             # debug
-            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\FloodImpactPlanning\Testing.gdb\slr_6ft_projected'
+            input_source = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\3DFloodImpact.gdb\slr_6_ProjectRaster'
             no_flood_value = "NoData"
-            baseline_elevation_raster = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Testing.gdb\base_elevation'
+            baseline_elevation_raster = r''
             baseline_elevation_value = "0"
-            output_features = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\3DFloodImpact.gdb\FloodPolys'
+            smooth_factor = 0
+            output_features = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\3DFloodImpact.gdb\FloodPolys'
 
-            home_directory = r'D:\Gert\Work\Esri\Solutions\LocalGovernment\DevelopmentCapacity\work1.4\DevelopmentCapacity'
+            home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact'
             layer_directory = home_directory + "\\layer_files"
             rule_directory = home_directory + "\\rule_packages"
             log_directory = home_directory + "\\Logs"
@@ -189,7 +191,9 @@ def main():
                                         baseline_elevation_raster=full_path_baseline_raster,
                                         baseline_elevation_value=baseline_elevation_value,
                                         outward_buffer=0,
-                                        output_polygons=output_features, debug=debugging)
+                                        output_polygons=output_features,
+                                        smoothing=smooth_factor,
+                                        debug=debugging)
 
             # create layer, set layer file
             # apply transparency here // checking if symbology layer is present
@@ -211,9 +215,9 @@ def main():
 
             if output_layer:
                 if z_unit == "Feet":
-                    arcpy.SetParameter(5, output_layer)
-                else:
                     arcpy.SetParameter(6, output_layer)
+                else:
+                    arcpy.SetParameter(7, output_layer)
             else:
                 raise NoOutput
 
