@@ -672,10 +672,7 @@ def attribute_feature(riskType,
                                     for raster in depthRasterProcessList:
                                         rasterMinDepth = arcpy.GetRasterProperties_management(raster[2],
                                                                                               "MINIMUM").getOutput(0)
-
-                                        rasterMinDepth = float(re.sub("[,.]", ".", rasterMinDepth))
-
-                                        if rasterMinDepth < 0:
+                                        if float(rasterMinDepth) < 0:
                                             arcpy.AddError(
                                                 "Depth Rasters must not contain negative values. Terminating process")
                                             arcpy.AddWarning(

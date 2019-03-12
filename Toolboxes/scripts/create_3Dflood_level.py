@@ -55,7 +55,7 @@ class FunctionError(Exception):
 
 # used functions
 
-def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevation_raster, baseline_elevation_value, outward_buffer, output_polygons, smoothing, debug):
+def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevation_raster, baseline_elevation_value, outward_buffer, output_polygons, debug):
     try:
         # Get Attributes from User
         if debug == 0:
@@ -73,10 +73,10 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
             enableLogging = True
             DeleteIntermediateData = True
             verbose = 0
-            use_in_memory = True
+            in_memory_switch = True
         else:
             # debug
-            home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact'
+            home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact'
             tiff_directory = home_directory + "\\Tiffs"
             tin_directory = home_directory + "\\Tins"
             scripts_directory = home_directory + "\\Scripts"
@@ -88,7 +88,7 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
             enableLogging = False
             DeleteIntermediateData = True
             verbose = 1
-            use_in_memory = False
+            in_memory_switch = False
 
         scratch_ws = common_lib.create_gdb(home_directory, "Intermediate.gdb")
         arcpy.env.workspace = scratch_ws
@@ -114,59 +114,31 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
 
                 flood_level_layer_mp = None
 
-                desc = arcpy.Describe(input_source)
-
                 arcpy.AddMessage("Processing input source: " + common_lib.get_name_from_feature_class(input_source))
 
-                spatial_ref = desc.spatialReference
-
-                # create IsNull to be used to clip and check for NoData.
-                if use_in_memory:
-                    is_null0 = "in_memory/is_null0"
-                else:
-                    is_null0 = os.path.join(scratch_ws, "is_null0")
-                    if arcpy.Exists(is_null0):
-                        arcpy.Delete_management(is_null0)
-
-                is_null_raster = arcpy.sa.IsNull(input_source)
-                is_null_raster.save(is_null0)
-
+                spatial_ref = arcpy.Describe(input_source).spatialReference
                 if spatial_ref.type == 'PROJECTED' or spatial_ref.type == 'Projected':
-                    # check input source type: projected rasters ONLY!!!!
+                    # check input source type: projected polygons and rasters ONLY!!!!
                     # check type, if polygon -> convert to raster
-                    if input_type == "RasterLayer" or input_type == "RasterDataset" or input_type == "raster":
-                        # prep raster
-                        # smooth result using focal stats
-                        if smoothing > 0:
+                    if input_type == "FeatureLayer" or input_type == "FeatureClass":
+                        # check if polygon, else bail
+                        if arcpy.Describe(input_source).shapetype == "polygon":
+
                             if use_in_memory:
-                                focal_raster = "in_memory/focal_raster"
+                                poly_raster = "in_memory/poly_raster"
                             else:
-                                focal_raster = os.path.join(scratch_ws, "focal_raster")
-                                if arcpy.Exists(focal_raster):
-                                    arcpy.Delete_management(focal_raster)
+                                poly_raster = os.path.join(scratch_ws, "poly_raster")
 
-                            if not (1 <= smoothing <= 100):
-                                smoothing = 30
+                                if arcpy.Exists(poly_raster):
+                                    arcpy.Delete_management(poly_raster)
 
-                            neighborhood = arcpy.sa.NbrRectangle(smoothing, smoothing, "CELL")
-
-                            flood_elev_raster = arcpy.sa.FocalStatistics(input_source, neighborhood, "MEAN", "true")
-                            flood_elev_raster.save(focal_raster)
-
-                            # con
-                            if use_in_memory:
-                                smooth_input = "in_memory/smooth_input"
-                            else:
-                                smooth_input = os.path.join(scratch_ws, "smooth_input")
-                                if arcpy.Exists(smooth_input):
-                                    arcpy.Delete_management(smooth_input)
-
-                            output = arcpy.sa.Con(is_null0, input_source, flood_elev_raster)
-                            output.save(smooth_input)
-
-                            input_raster = smooth_input
+                                # Execute PolygonToRaster
+    #                            arcpy.PolygonToRaster_conversion(input_source, z_field, DTMMean)
+    #                            input_raster = poly_raster
                         else:
-                            input_raster = input_source
+                            raise NoPolygons
+                    elif input_type == "RasterLayer" or input_type == "RasterDataset" or input_type == "raster":
+                        input_raster = input_source
                     else:
                         raise NotSupported
 
@@ -197,15 +169,13 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                     else:
                         pass
 
+                    has_nodata = arcpy.GetRasterProperties_management(input_raster, "ANYNODATA")[0]
                     msg_body = create_msg_body(
                        "Checking for NoData values in raster: " + common_lib.get_name_from_feature_class(
                            input_raster) + ". NoData values are considered to be non-flooded areas!", 0, 0)
                     msg(msg_body)
 
-                    max_value = arcpy.GetRasterProperties_management(is_null0, "MAXIMUM")[0]
-#                    has_nodata = arcpy.GetRasterProperties_management(input_raster, "ANYNODATA")[0] ## fails on some rasters
-
-                    if int(max_value) == 1:
+                    if int(has_nodata) == 1:
                         # 1. get the outline of the raster as polygon via RasterDomain
                         xy_unit = common_lib.get_xy_unit(input_raster, 0)
 
@@ -294,8 +264,7 @@ def flood_from_raster(input_source, input_type, no_flood_value, baseline_elevati
                                 if arcpy.Exists(polygons_inward):
                                     arcpy.Delete_management(polygons_inward)
 
-                            x = float(re.sub("[,.]", ".", str(cell_size.getOutput(0))))
-#                            x = float(str(cell_size.getOutput(0)))
+                            x = float(str(cell_size.getOutput(0)))
 
                             if x < 0.1:
                                 arcpy.AddError("Raster cell size is 0. Can't continue. Please check the raster properties.")
