@@ -164,9 +164,22 @@ def create_raster(input_source, depth_raster, depth_value, boundary_size, bounda
 
                                 arcpy.Clip_management(depth_raster, "#", clip_raster, input_source, "#", "#", "MAINTAIN_EXTENT")
 
-                                all_nodata = arcpy.GetRasterProperties_management(clip_raster, "ALLNODATA")[0]
+                                # TODO double check below
+                                # create IsNull to be used to check for NoData.
+                                if use_in_memory:
+                                    is_null0 = "in_memory/is_null0"
+                                else:
+                                    is_null0 = os.path.join(scratch_ws, "is_null0")
+                                    if arcpy.Exists(is_null0):
+                                        arcpy.Delete_management(is_null0)
 
-                                if int(all_nodata) == 1:
+                                is_null_raster = arcpy.sa.IsNull(clip_raster)
+                                is_null_raster.save(is_null0)
+                                min_value = arcpy.GetRasterProperties_management(is_null0, "MINIMUM")[0]
+
+#                                all_nodata = arcpy.GetRasterProperties_management(clip_raster, "ALLNODATA")[0]
+
+                                if int(min_value) == 1:
                                     msg_body = create_msg_body("Input rasters do not overlap.", 0, 0)
                                     msg(msg_body, WARNING)
                                     depth_raster = None
@@ -313,7 +326,8 @@ def create_raster(input_source, depth_raster, depth_value, boundary_size, bounda
                                     arcpy.Delete_management(polygons_outward)
 
                             # x = cell_size_source.getOutput(0)
-                            x = float(str(cell_size_source.getOutput(0)))
+                            x = float(re.sub("[,.]", ".", str(cell_size_source.getOutput(0))))
+#                            x = float(str(cell_size_source.getOutput(0)))
                             buffer_out = int(x)
 
                             xy_unit = common_lib.get_xy_unit(minus_raster, 0)
@@ -335,7 +349,8 @@ def create_raster(input_source, depth_raster, depth_value, boundary_size, bounda
                                     arcpy.Delete_management(polygons_inward)
 
                             # x = cell_size_source.getOutput(0)
-                            x = float(str(cell_size_source.getOutput(0)))
+                            x = float(re.sub("[,.]", ".", str(cell_size_source.getOutput(0))))
+#                            x = float(str(cell_size_source.getOutput(0)))
 
                             buffer_in = (boundary_size-1) + int(2*x)  # boundary is always 2 cellsizes / user can't go lower than 2.
 
