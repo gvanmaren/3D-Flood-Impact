@@ -1056,10 +1056,11 @@ def get_z_unit(local_lyr, debug):
             unit_z = sr.VCS.linearUnitName
         else:
             unit_z = sr.linearUnitName
-            msg_body = ("Could not detect a vertical coordinate system for " + get_name_from_feature_class(local_lyr))
-            msg(msg_body)
-            msg_body = ("Using linear units instead.")
-            msg(msg_body)
+            if debug == 1:
+                msg_body = ("Could not detect a vertical coordinate system for " + get_name_from_feature_class(local_lyr))
+                msg(msg_body)
+                msg_body = ("Using linear units instead.")
+                msg(msg_body)
 
         if unit_z in ('Foot', 'Foot_US', 'Foot_Int'):
             local_unit = 'Feet'
@@ -1482,6 +1483,77 @@ def get_extent_feature(local_ws, local_features):
                 msg(msg_body)
 
 
+def get_combined_extent_rasters(local_ws, raster_list, base_sr):
+
+    try:
+        combined_extent_rasters = os.path.join(local_ws, "raster_combined_extent")
+        if arcpy.Exists(combined_extent_rasters):
+            arcpy.Delete_management(combined_extent_rasters)
+
+        x_min = 0
+        y_min = 0
+        x_max = 0
+        y_max = 0
+        i = 0
+
+        for raster in raster_list:
+            desc = arcpy.Describe(raster)
+            extent = desc.extent
+            # Create the bounding box
+
+            if i == 0:
+                x_min = extent.lowerLeft.X
+                y_min = extent.lowerLeft.Y
+                x_max = extent.upperRight.X
+                y_max = extent.upperRight.Y
+            else:
+
+                if extent.lowerLeft.X < x_min:
+                    xmin = extent.lowerLeft.X
+                if extent.lowerLeft.Y < y_min:
+                    ymin = extent.lowerLeft.Y
+                if extent.upperRight.X > x_max:
+                    xmax = extent.upperRight.X
+                if extent.upperRight.Y > y_max:
+                    ymax = extent.upperRight.Y
+
+        # create extent polygon
+        ll = arcpy.Point(x_min, y_min)
+        ul = arcpy.Point(x_min, y_max)
+        ur = arcpy.Point(x_max, y_max)
+        lr = arcpy.Point(x_max, y_min)
+
+        array = arcpy.Array()
+        array.add(ll)
+        array.add(lr)
+        array.add(ur)
+        array.add(ul)
+        # ensure the polygon is closed
+        array.add(ll)
+        # Create the polygon object
+        polygon = arcpy.Polygon(array)
+        array.removeAll()
+
+        arcpy.CopyFeatures_management(polygon, combined_extent_rasters)
+        arcpy.DefineProjection_management(combined_extent_rasters, base_sr)
+
+        del polygon
+
+        return combined_extent_rasters
+
+    except:
+        line, filename, synerror = trace()
+        raise FunctionError(
+            {
+                "function": "get_combined_extent_rasters",
+                "line": line,
+                "filename": filename,
+                "synerror": synerror,
+                "arc": str(arcpy.GetMessages(2))
+            }
+        )
+
+
 def get_extent_area(local_ws, local_features):
 
 #    msg("--------------------------")
@@ -1852,7 +1924,7 @@ def create_surface_from_points(local_ws, local_tin_ws, local_fc, local_field, lo
         # select all points with good elevation values
         local_layer = get_name_from_feature_class(local_fc) + "_lyr"
         select_lyr = arcpy.MakeFeatureLayer_management(local_fc, local_layer).getOutput(0)
-        arcpy.SelectLayerByAttribute_management(local_layer, "NEW_SELECTION", expression)
+        arcpy.SelectLayerByAttribute_management(select_lyr, "NEW_SELECTION", expression)
 
         GoodPoints = os.path.join(local_ws, "good_points")
         if arcpy.Exists(GoodPoints):
@@ -2252,3 +2324,60 @@ def get_num_selected(input_features):
     except Exception:
         e = sys.exc_info()[1]
         arcpy.AddMessage("Unhandled exception: " + str(e.args[0]))
+
+
+def get_field_name_for_fieldstring(input_features, field_string):
+    try:
+
+        field_name = field_string
+
+        # find field name for field
+        fields = arcpy.Describe(input_features).fields
+        for f in fields:
+            if f.aliasName == field_string:
+                field_name = f.name
+                break
+
+        return field_name
+
+    except arcpy.ExecuteError:
+        # Get the tool error messages
+        msgs = arcpy.GetMessages(2)
+        arcpy.AddError(msgs)
+    except Exception:
+        e = sys.exc_info()[1]
+        arcpy.AddMessage("Unhandled exception: " + str(e.args[0]))
+
+
+def has_only_numbers(inputString):
+    rc = True
+    i = 0
+    for char in inputString:
+        if not char.isdigit:
+            rc = False
+            break
+
+    return rc
+
+
+def has_only_numbers_and_underscore(inputString):
+    rc = True
+    i = 0
+    for char in inputString:
+        if char != '_':
+            if char not in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
+                rc = False
+                break
+        else:
+            i += 1
+
+    if i > 1:
+        rc = False
+
+    return rc
+
+
+def has_numbers(inputString):
+    return any(char.isdigit() for char in inputString)
+
+

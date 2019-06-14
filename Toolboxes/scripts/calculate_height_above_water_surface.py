@@ -29,7 +29,10 @@ from common_lib import create_msg_body, msg
 # Constants
 WARNING = "warning"
 esri_featureID = "copy_featureID"
-
+zmin_field = "Z_MIN"
+min_field = "MIN"
+esri_unit = "unit"
+has_field = "HAS_height"
 
 def add_minimum_height_above_water_surface(lc_ws, lc_input_features, lc_bridge_raster, lc_input_surface,
                                            lc_memory_switch):
@@ -56,8 +59,6 @@ def add_minimum_height_above_water_surface(lc_ws, lc_input_features, lc_bridge_r
                 arcpy.Delete_management(heights_table)
 
             stat_type = "MINIMUM"
-            min_field = "MIN"
-            zmin_field = "Z_MIN"
 
             arcpy.AddMessage("Calculating Height Statistics Information for " +
                              common_lib.get_name_from_feature_class(lc_input_features) + ".")
@@ -72,9 +73,11 @@ def add_minimum_height_above_water_surface(lc_ws, lc_input_features, lc_bridge_r
             arcpy.AddZInformation_3d(lc_input_features, zmin_field, None)
 
             # calculate height above surface
-            has_field = "HAS_height"
             common_lib.add_field(lc_input_features, has_field, "DOUBLE", 5)
-            arcpy.CalculateField_management(lc_input_features, has_field, "!" + min_field + "!",
+
+            expression = "round(float(!" + min_field + "!), 2)"
+
+            arcpy.CalculateField_management(lc_input_features, has_field, expression,
                                             "PYTHON3", None)
         else:
             msg_body = create_msg_body("Couldn't find input feature class: " + str(lc_input_features), 0, 0)
@@ -146,18 +149,62 @@ def calculate_height(lc_input_features, lc_ws, lc_tin_dir, lc_input_surface,
             # use same cell size as input surface
             cell_size = arcpy.GetRasterProperties_management(lc_input_surface, "CELLSIZEX")[0]
 
+            dataType = "FLOAT"
+            method = "LINEAR"
+            sampling = "CELLSIZE " + str(cell_size)
+            zfactor = "1"
+
             arcpy.TinRaster_3d(out_tin,
                                bridge_raster,
-                               "FLOAT", "LINEAR", "CELLSIZE", 1, float(cell_size))
+                               dataType,
+                               method, sampling, zfactor)
 
             add_minimum_height_above_water_surface(lc_ws, bridge_polys, bridge_raster,
                                              lc_input_surface, lc_memory_switch)
 
             # create point file for labeling
-            # round HAS_height to 2 decimals
-            # add unit field
+            if lc_memory_switch:
+                bridge_points = "in_memory/bridge_points"
+            else:
+                bridge_points = os.path.join(lc_ws, "bridge_points")
+                if arcpy.Exists(bridge_points):
+                    arcpy.Delete_management(bridge_points)
 
-            return bridge_polys #, bridge_points
+            arcpy.FeatureToPoint_management(bridge_polys,
+                                            bridge_points,
+                                           "INSIDE")
+
+            bridge_points3D = lc_output_features + "_points_3D"
+            if arcpy.Exists(bridge_points3D):
+                arcpy.Delete_management(bridge_points3D)
+
+            # create 3D point
+            arcpy.FeatureTo3DByAttribute_3d(bridge_points, bridge_points3D, zmin_field)
+
+            # add unit field
+            common_lib.delete_add_field(bridge_points3D, esri_unit, "TEXT")
+
+            expression = """{} IS NOT NULL""".format(arcpy.AddFieldDelimiters(bridge_points3D, has_field))
+
+            # select all points with good elevation values
+            local_layer = common_lib.get_name_from_feature_class(bridge_points3D) + "_lyr"
+            select_lyr = arcpy.MakeFeatureLayer_management(bridge_points3D, local_layer).getOutput(0)
+            arcpy.SelectLayerByAttribute_management(select_lyr, "NEW_SELECTION", expression, None)
+
+            z_unit = common_lib.get_z_unit(bridge_points3D, lc_debug)
+
+            if z_unit == "Meters":
+                expression = "'m'"
+            else:
+                expression = "'ft'"
+
+            arcpy.CalculateField_management(select_lyr, esri_unit, expression, "PYTHON_9.3")
+            arcpy.SelectLayerByAttribute_management(select_lyr, "CLEAR_SELECTION")
+
+            common_lib.delete_fields(bridge_polys, [min_field, zmin_field])
+            common_lib.delete_fields(bridge_points3D, [min_field, zmin_field])
+
+            return bridge_polys, bridge_points3D
         else:
             msg_body = create_msg_body("Couldn't find input feature class: " + str(lc_input_features), 0, 0)
             msg(msg_body, WARNING)

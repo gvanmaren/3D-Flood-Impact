@@ -34,7 +34,7 @@ def extrapolate_raster(lc_ws, lc_dsm, lc_cell_size, lc_log_dir, lc_debug, lc_mem
 
     try:
         if lc_memory_switch:
-            raster_polygons = "in_memory/raster_polygons"
+            raster_polygons = "memory/raster_polygons"
         else:
             raster_polygons = os.path.join(lc_ws, "raster_polygons")
             if arcpy.Exists(raster_polygons):
@@ -45,14 +45,14 @@ def extrapolate_raster(lc_ws, lc_dsm, lc_cell_size, lc_log_dir, lc_debug, lc_mem
 
         # 2. buffer it inwards so that we have a polygon only of the perimeter plus a few cells inward?.
         if lc_memory_switch:
-            polygons_inward = "in_memory/inward_buffer"
+            polygons_inward = "memory/inward_buffer"
         else:
             polygons_inward = os.path.join(lc_ws, "inward_buffer")
             if arcpy.Exists(polygons_inward):
                 arcpy.Delete_management(polygons_inward)
 
         if lc_memory_switch:
-            polygons_outward = "in_memory/outward_buffer"
+            polygons_outward = "memory/outward_buffer"
         else:
             polygons_outward = os.path.join(lc_ws, "outward_buffer")
             if arcpy.Exists(polygons_outward):
@@ -157,7 +157,8 @@ def extrapolate_raster(lc_ws, lc_dsm, lc_cell_size, lc_log_dir, lc_debug, lc_mem
         arcpy.AddMessage("Unhandled exception: " + str(e.args[0]))
 
 
-def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_log_dir, lc_debug, lc_memory_switch):
+def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_min_bridge_area, lc_extrapolate,
+            lc_output_features, lc_log_dir, lc_debug, lc_memory_switch):
 
     try:
         # create dem
@@ -199,7 +200,6 @@ def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_
             arcpy.MakeLasDatasetLayer_management(lc_lasd, bridge_ld_layer, class_code=str(lc_class_code))
 
             # create dsm from las with just bridge codes
-            # smooth result using focal stats
             if lc_memory_switch:
                 dsm = "in_memory/dsm"
             else:
@@ -209,8 +209,6 @@ def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_
 
             if arcpy.Exists(dsm):
                 arcpy.Delete_management(dsm)
-
-#            arcpy.env.extent = desc.extent
 
             arcpy.conversion.LasDatasetToRaster(bridge_ld_layer, dsm, 'ELEVATION',
                                                 'BINNING MAXIMUM LINEAR',
@@ -222,19 +220,20 @@ def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_
             arcpy.env.overwriteOutput = True
 
             # extrapolate dsm for better interpolation
-            dsm_outer = extrapolate_raster(lc_ws, dsm, lc_cell_size, lc_log_dir, lc_debug, lc_memory_switch)
+            if lc_extrapolate:
+                dsm_outer = extrapolate_raster(lc_ws, dsm, lc_cell_size, lc_log_dir, lc_debug, lc_memory_switch)
 
-            # merge rasters
-            listRasters = []
-            listRasters.append(dsm)
-            listRasters.append(dsm_outer)
-            outer_dsm_name = "dms_plus_outer"
+                # merge rasters
+                listRasters = []
+                listRasters.append(dsm)
+                listRasters.append(dsm_outer)
+                outer_dsm_name = "dms_plus_outer"
 
-            desc = arcpy.Describe(listRasters[0])
-            arcpy.MosaicToNewRaster_management(listRasters, lc_ws, outer_dsm_name, desc.spatialReference,
-                                               "32_BIT_FLOAT", lc_cell_size, 1, "MEAN", "")
+                desc = arcpy.Describe(listRasters[0])
+                arcpy.MosaicToNewRaster_management(listRasters, lc_ws, outer_dsm_name, desc.spatialReference,
+                                                   "32_BIT_FLOAT", lc_cell_size, 1, "MEAN", "")
 
-            dsm = os.path.join(lc_ws, outer_dsm_name)
+                dsm = os.path.join(lc_ws, outer_dsm_name)
 
             # create raster using LASPointStatisticsAsRaster
             if lc_memory_switch:
@@ -255,6 +254,8 @@ def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_
                                                    las_point_stats,
                                                    "PREDOMINANT_CLASS", "CELLSIZE", 2*lc_cell_size)
 
+            lc_memory_switch = False
+
             # convert to polygon
             if lc_memory_switch:
                 bridge_polys = "in_memory/bridge_polys"
@@ -269,9 +270,10 @@ def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_
             arcpy.conversion.RasterToPolygon(las_point_stats,
                                              bridge_polys,
                                              "SIMPLIFY", "Value", "SINGLE_OUTER_PART", None)
+
             # eliminate holes
             if lc_memory_switch:
-                bridge_polys2 = "in_memory/bridge_polys2"
+                bridge_polys2 = "memory/bridge_polys2"
             else:
                 bridge_polys2 = os.path.join(lc_ws, "bridge_polys2")
                 if arcpy.Exists(bridge_polys2):
@@ -285,7 +287,7 @@ def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_
                                                   "AREA", "20 SquareMeters", 0, "ANY")
             # regularize footprints
             if lc_memory_switch:
-                bridge_polys3 = "in_memory/bridge_polys3"
+                bridge_polys3 = "memory/bridge_polys3"
             else:
                 bridge_polys3 = os.path.join(lc_ws, "bridge_polys3")
                 if arcpy.Exists(bridge_polys3):
@@ -296,25 +298,11 @@ def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_
 
             arcpy.ddd.RegularizeBuildingFootprint(bridge_polys2,
                                                   bridge_polys3,
-                                                  "ANY_ANGLE", 1, 1, 0.25, 1.5, 0.1, 1000000)
-            # minus buffer so we can get dsm values
-            if lc_memory_switch:
-                bridge_polys4 = "in_memory/bridge_polys4"
-            else:
-                bridge_polys4 = os.path.join(lc_ws, "bridge_polys4")
-                if arcpy.Exists(bridge_polys4):
-                    arcpy.Delete_management(bridge_polys4)
-
-            arcpy.analysis.Buffer(bridge_polys3,
-                                  bridge_polys4,
-                                  "-1 Meters", "FULL", "ROUND", "NONE", None, "PLANAR")
-
-            # densify buffer so the bridge surface will follow the dsm
-            arcpy.edit.Densify(bridge_polys3, "DISTANCE", "10 Meters", "0.1 Meters", 10)
+                                                  "ANY_ANGLE", 2*lc_cell_size, 2*lc_cell_size, 0.25, 1.5, 0.1, 1000000)
 
             # interpolate shape on the dsm
             if lc_memory_switch:
-                bridge_polys5 = "in_memory/bridge_polys5"
+                bridge_polys5 = "memory/bridge_polys5"
             else:
                 bridge_polys5 = os.path.join(lc_ws, "bridge_polys5")
                 if arcpy.Exists(bridge_polys5):
@@ -323,16 +311,45 @@ def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_
             msg_body = create_msg_body("Interpolating polygons...", 0, 0)
             msg(msg_body)
 
-            arcpy.ddd.InterpolateShape(dsm,
-                                       bridge_polys3,
-                                       bridge_polys5,
-                                       None, 1, "BILINEAR", "VERTICES_ONLY", 0, "EXCLUDE")
+            if not lc_extrapolate:
+                if lc_memory_switch:
+                    bridge_polys4 = "memory/bridge_polys4"
+                else:
+                    bridge_polys4 = os.path.join(lc_ws, "bridge_polys4")
+                    if arcpy.Exists(bridge_polys4):
+                        arcpy.Delete_management(bridge_polys4)
+
+                if common_lib.get_xy_unit(bridge_polys3, 0) == "Feet":
+                    buffer_text = "-" + str(lc_cell_size*2) + " Feet"
+                else:
+                    buffer_text = "-" + str(lc_cell_size*2) + " Meters"
+
+                arcpy.analysis.Buffer(bridge_polys3,
+                                      bridge_polys4,
+                                      buffer_text, "FULL", "ROUND", "NONE", None, "PLANAR")
+
+                # densify buffer so the bridge surface will follow the dsm
+                arcpy.edit.Densify(bridge_polys4, "DISTANCE", "10 Meters", "0.1 Meters", 10)
+
+                arcpy.ddd.InterpolateShape(dsm,
+                                           bridge_polys4,
+                                           bridge_polys5,
+                                           None, 1, "BILINEAR", "VERTICES_ONLY", 0, "EXCLUDE")
+            else:
+                # densify buffer so the bridge surface will follow the dsm
+                arcpy.edit.Densify(bridge_polys3, "DISTANCE", "10 Meters", "0.1 Meters", 10)
+
+                arcpy.ddd.InterpolateShape(dsm,
+                                           bridge_polys3,
+                                           bridge_polys5,
+                                           None, 1, "BILINEAR", "VERTICES_ONLY", 0, "EXCLUDE")
 
             valueAttribute = "Shape_Area"
-            minValue = 20
-            expression = """{} > {}""".format(arcpy.AddFieldDelimiters(bridge_polys5, valueAttribute), minValue)
+            expression = """{} > {}""".format(arcpy.AddFieldDelimiters(bridge_polys5, valueAttribute),
+                                              lc_min_bridge_area)
 
-            msg_body = create_msg_body("Removing polygons with area smaller than " + str(minValue) + ".", 0, 0)
+            msg_body = create_msg_body("Removing polygons with area smaller than " +
+                                       str(lc_min_bridge_area) + ".", 0, 0)
             msg(msg_body)
 
             # select all points with good elevation values
@@ -340,26 +357,19 @@ def extract(lc_lasd, lc_ws, lc_class_code, lc_cell_size, lc_output_features, lc_
             select_lyr = arcpy.MakeFeatureLayer_management(bridge_polys5, select_name).getOutput(0)
             arcpy.SelectLayerByAttribute_management(select_lyr, "NEW_SELECTION", expression)
 
- #           arcpy.management.SelectLayerByAttribute("bridge_polys5", "NEW_SELECTION", "Shape_Area > 10", None)
+            bridge_polys6 = lc_output_features + "_surfaces"
 
-            if lc_memory_switch:
-                bridge_polys6 = "in_memory/bridge_polys6"
-            else:
-                bridge_polys6 = os.path.join(lc_ws, "bridge_polys6")
-                if arcpy.Exists(bridge_polys6):
-                    arcpy.Delete_management(bridge_polys6)
+            if arcpy.Exists(bridge_polys6):
+                arcpy.Delete_management(bridge_polys6)
 
             arcpy.CopyFeatures_management(select_lyr, bridge_polys6)
 
-            # add Z information from DSM
-
-            # zonal stats to get WSE values
-
+            return bridge_polys6
         else:
             msg_body = create_msg_body("Couldn't detect class code " + str(lc_class_code) + " in las dataset. Exiting...", 0, 0)
             msg(msg_body, WARNING)
 
-#        return bridges
+            return None
 
     except arcpy.ExecuteError:
         # Get the tool error messages

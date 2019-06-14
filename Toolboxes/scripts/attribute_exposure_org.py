@@ -3,7 +3,6 @@ import os
 import re
 import time
 import sys
-import flood_impact_lib
 import common_lib
 from common_lib import create_msg_body, msg, trace
 import settings
@@ -115,6 +114,54 @@ def create_point_featureclass_from_points(fc_name, points_list, spatial_ref):
         arcpy.AddError(e.args[0])
 
 
+def FCNumericSorter_old(inList):
+    processedList = []
+    intermediateList = []
+    for fc in inList:
+        no_3D_string = str(fc).replace("_3D", "").replace("_3d", "")
+        numString = re.sub('[^0123456789_]', '', no_3D_string)
+        intermediateList.append([numString, fc])
+    intermediateListSorted = sorted(intermediateList, key=lambda x: x[0], reverse=True)
+    for row in intermediateListSorted:
+        processedList.append(row[1])
+    del intermediateList
+    return processedList
+
+
+def FCNumericSorter(inList):
+    processedList = []
+    intermediateList = []
+    organizeList = []
+    for fc in inList:
+        # TODO erp
+        no_3D_string = str(fc).replace("_3D", "").replace("_3d", "")
+        numString = re.sub('[^0123456789_]', '', no_3D_string)
+        intermediateList.append([numString, fc])
+    intermediateListSorted = sorted(intermediateList, key=lambda x: x[0], reverse=True)
+    currentItem = 0
+    for row in intermediateListSorted:
+
+        # remove first _
+        temp = row[0].replace("_", "", 1)
+        # remove second _ and replace with .
+        temp2 = temp.replace("_", ".", 1)
+        # remove optional last _
+        temp3 = temp2.replace("_", "", 1)
+        numberFormatted = float(temp3)
+
+#       old: numberFormatted = float(row[0].replace("_", "", 1).replace("_", ".", 1))
+        organizeList.append([numberFormatted, row[1]])
+        currentItem += 1
+    finalList = sorted(organizeList, key=lambda x: (x[0], x[1]), reverse=True)
+    for row in finalList:
+        processedList.append(row[1])
+    #print(processedList)
+    del intermediateList
+    del finalList
+    del organizeList
+    return processedList
+
+
 def checkSameSpatialReference(input_list, featureclass_list):
     try:
         we_fail = 0
@@ -207,6 +254,35 @@ def riskTypeValues(riskType, inSpreadsheet):
     return (attrBaseName, levelsList, levelsListStr), isPercentFlood
 
 
+def obtainProcessingList(inRiskGeoms3D, inriskValues, inWorkspace, isPercentFlood):
+    riskGeoms3DOrdered = []
+    error = 0
+    for riskGeom3D in inRiskGeoms3D:
+        skip = False
+        for riskValue in inriskValues[2]:
+            if skip:
+                pass
+            else:
+                riskGeomNo3D = str(riskGeom3D).replace("3D", "").replace("3d", "")
+
+                # back to _ notation
+                temp = str(riskValue).replace(".", "_", 1)
+
+                if temp in str(riskGeomNo3D):
+                    riskValPosition = riskGeomNo3D.index(str(riskValue))
+                    riskValueLength = len(riskValue)
+                    if riskGeom3D[riskValPosition:(riskValPosition + riskValueLength)] == riskValue:
+                        riskGeom3DFullPath = os.path.join(inWorkspace, riskGeom3D)
+                        riskGeoms3DOrdered.append([riskValue, riskGeom3D, riskGeom3DFullPath])
+                        skip = True
+                        error = 0
+                else:
+                    error = 1
+    if isPercentFlood:
+        riskGeoms3DOrdered = riskGeoms3DOrdered[::-1]
+    return riskGeoms3DOrdered, error
+
+
 def compareDepthSurfaceLists(surfaceRasterProcessList, depthRasterProcessList):
     surfaceRasterListLength = len(surfaceRasterProcessList)
     depthRasterListLength = len(depthRasterProcessList)
@@ -239,12 +315,38 @@ def obtainGDFC(inGDB, featureType):
     # Use the ListFeatureClasses function to return a list of Feature Classes of given type
     featureclasses = arcpy.ListFeatureClasses(feature_type=featureType)
 
-    sorted_list = flood_impact_lib.fc_numeric_sorter(featureclasses)
+    sorted_list = FCNumericSorter(featureclasses)
     featureclasses = sorted_list
 
 #    featureclasses.sort(reverse=True)
     # Copy Feature to a file geodatabase
     return featureclasses
+
+
+def obtainRasters(inGDB):
+    arcpy.env.workspace = inGDB
+    # Attempt to check for Rasters First
+    try:
+        datasets = arcpy.ListDatasets("*", "Raster")
+
+        sorted_list = FCNumericSorter(datasets)
+        datasets = sorted_list
+
+#        datasets.sort(reverse=True)
+        return datasets
+    except:
+        try:
+            # Secondly Check for Mosaic Datasets if no rasters detected
+            datasets = arcpy.ListDatasets("*", "Mosaic")
+            sorted_list = FCNumericSorter(datasets)
+            datasets = sorted_list
+
+#            datasets.sort(reverse=True)
+            return datasets
+        except:
+            arcpy.AddWarning("No Rasters of Mosaic Datasets Detected in {0}...\n"
+                             "Terminating Process".format(inGDB))
+            exit()
 
 
 def unitsCalc(inFeature):
@@ -329,7 +431,6 @@ def createTempFP(inFeature, bufferDistance, featureFID, tempFP):
             arcpy.MultiPatchFootprint_3d(inFeature, mpFpTemp, featureFID)
             arcpy.RepairGeometry_management(mpFpTemp)
 
-            # this adds the Shape_Area field
             arcpy.AddMessage("Buffering footprints of: " + common_lib.get_name_from_feature_class(inFeature) + ".")
             arcpy.Buffer_analysis(mpFpTemp, tempFP,
                                       "{0} {1}".format(bufferDistance, unitsCalc(mpFpTemp)), "FULL", "ROUND",
@@ -528,7 +629,7 @@ def attribute_feature(riskType,
                                                      "large areas we recommend using Raster Data.")
 
                                     # get processing list, alert user if data will not be processed: risk value needs to be present in naming.
-                                    surfaceRasterProcessList, error = flood_impact_lib.obtain_processing_list(riskGeoms3D, riskValues,
+                                    surfaceRasterProcessList, error = obtainProcessingList(riskGeoms3D, riskValues,
                                                                                            inSurfaceGDB, isPercentFlood)
                                     #print(surfaceRasterProcessList)
                                     if error == 1:
@@ -542,11 +643,11 @@ def attribute_feature(riskType,
                                             surfaceDataExists = False
                                 else:
                                     # check if rasters are present
-                                    riskSurfaceRasters = flood_impact_lib.obtain_rasters(inSurfaceGDB)
+                                    riskSurfaceRasters = obtainRasters(inSurfaceGDB)
                                     if len(riskSurfaceRasters) > 0:  # Detect that Raster Data Exists
 
                                         # alert user if data will not be processed: risk value needs to be present in naming.
-                                        surfaceRasterProcessList, error = flood_impact_lib.obtain_processing_list(riskSurfaceRasters, riskValues, inSurfaceGDB, isPercentFlood)
+                                        surfaceRasterProcessList, error = obtainProcessingList(riskSurfaceRasters, riskValues, inSurfaceGDB, isPercentFlood)
                                         #print(surfaceRasterProcessList)
                                         if error == 1:
                                             arcpy.AddMessage("Could not detect risk values in naming of surface rasters. Continuing processing without Hydro Surface Attributes")
@@ -567,10 +668,10 @@ def attribute_feature(riskType,
                             # check if depth data exists...
                             if arcpy.Exists(inDepthGDB):
                                 # Obtain List of Available Depth Features/Rasters in GDB
-                                riskDepthRasters = flood_impact_lib.obtain_rasters(inDepthGDB)
+                                riskDepthRasters = obtainRasters(inDepthGDB)
 
-                                depthRasterProcessList, error = flood_impact_lib.obtain_processing_list(riskDepthRasters, riskValues, inDepthGDB, isPercentFlood)
-
+                                depthRasterProcessList, error = obtainProcessingList(riskDepthRasters, riskValues, inDepthGDB, isPercentFlood)
+                                #print(depthRasterProcessList)
                                 if error == 1:
                                     arcpy.AddWarning("Could not detect risk values in naming of depth rasters. Check your raster names and chosen riskType Exiting...")
                                     inDepthGDB = ""
@@ -627,9 +728,6 @@ def attribute_feature(riskType,
                                                                  tolerance)
                                 arcpy.env.cellSize = "MINOF"
 
-                                # Define Pixel Area for Footprint
-                                PIXELAREA = pixelArea(tempRasterFP)
-
                                 # Begin Calculating Depth Statistics Information
                                 # Check for Meters vs Feet elevations in DEM vs Water Surface Rasters
                                 count = 0
@@ -641,7 +739,7 @@ def attribute_feature(riskType,
                                         arcpy.SetProgressor("step", "Step progressor: Processing Exposure Level {0} of {1}".format(
                                             count, exposureLevels), count, exposureLevels, 1)
                                         arcpy.SetProgressorPosition(count)
-                                        arcpy.AddMessage("Round {0} of {1}".format(count+1, exposureLevels))
+                                        arcpy.AddMessage("Round {0} of {1}".format(count+1, len(depthRasterProcessList)))
 
                                         if count >= 0:  # For testing on only the First File Set; Remove upon completion
                                             surfaceRaster = None
@@ -691,28 +789,27 @@ def attribute_feature(riskType,
                                                                                     '{0} {1} {2}'.format(riskValues[0], row[0], field.name))
 
                                             ''' Add Geometry Area attribute to the highest Surface Table for use in future calcs...'''
-#                                            arcpy.AddField_management(depthZonalStatsTable, "Shape_Area", "DOUBLE", None, None,
-#                                                                      None,
-#                                                                      "Shape Area", "NULLABLE", "NON_REQUIRED", None)
-
-                                            ''' simply join the shape_area attribute created by the buffer --> no need to calculate it below '''
-                                            arcpy.JoinField_management(depthZonalStatsTable, featureFID, tempFP, featureFID, "Shape_Area")
-
-#                                            with arcpy.da.UpdateCursor(depthZonalStatsTable,
-#                                                                       [featureFID, "Shape_Area"]) as ucursor:
-#                                                for uRow in ucursor:
-#                                                    with arcpy.da.SearchCursor(tempFP, [featureFID, "SHAPE@AREA"]) as scursor:
-#                                                        for sRow in scursor:
-#                                                            if uRow[0] == sRow[0]:
-#                                                                # sRow[0].area  # Read area value as double
-#                                                                uRow[1] = sRow[1]  # Write area value to field
-#                                                                ucursor.updateRow(uRow)
+                                            arcpy.AddField_management(depthZonalStatsTable, "Shape_Area", "DOUBLE", None, None,
+                                                                      None,
+                                                                      "Shape Area", "NULLABLE", "NON_REQUIRED", None)
+                                            with arcpy.da.UpdateCursor(depthZonalStatsTable,
+                                                                       [featureFID, "Shape_Area"]) as ucursor:
+                                                for uRow in ucursor:
+                                                    with arcpy.da.SearchCursor(tempFP, [featureFID, "SHAPE@AREA"]) as scursor:
+                                                        for sRow in scursor:
+                                                            if uRow[0] == sRow[0]:
+                                                                # sRow[0].area  # Read area value as double
+                                                                uRow[1] = sRow[1]  # Write area value to field
+                                                                ucursor.updateRow(uRow)
 
 
                                             # Overwrite Area field with Count*(PixelLength*PixelWidth)
                                             strAreaField = '{0}{1}{2}'.format(riskValues[0], row[0], 'AREA')
                                             countField = '{0}{1}{2}'.format(riskValues[0], row[0], 'COUNT')
                                             sumField = '{0}{1}{2}'.format(riskValues[0], row[0], 'SUM')
+
+                                            # Define Pixel Area for Footprint
+                                            PIXELAREA = pixelArea(tempRasterFP)
 
                                             with arcpy.da.UpdateCursor(depthZonalStatsTable, [strAreaField, countField, "Shape_Area"]) as ucursor:
                                                 for item in ucursor:

@@ -1,6 +1,6 @@
 # -------------------------------------------------------------------------------
-# Name:        extract_bridges_from_LAS_tbx.py
-# Purpose:     wrapper for extract_bridges_from_LAS.py
+# Name:        calculate_height_above_surface_tbx.py
+# Purpose:     wrapper for calculate_height_above_surface.py
 #
 # Author:      Gert van Maren
 #
@@ -18,12 +18,12 @@
 import arcpy
 import sys
 import importlib
-import extract_bridges_from_las
+import calculate_height_above_surface
 import os
 import re
 
-if 'extract_bridges_from_las' in sys.modules:
-    importlib.reload(extract_bridges_from_las)
+if 'calculate_height_above_surface' in sys.modules:
+    importlib.reload(calculate_height_above_surface)
 import common_lib
 if 'common_lib' in sys.modules:
     importlib.reload(common_lib)  # force reload of the module
@@ -45,7 +45,7 @@ else:
 
 
 # constants
-TOOLNAME = "extract_bridges_from_las"
+TOOLNAME = "calculate_height_above_surface"
 WARNING = "warning"
 ERROR = "error"
 
@@ -60,26 +60,6 @@ class NoLayerFile(Exception):
 
 
 class NoPointLayer(Exception):
-    pass
-
-
-class NoCatenaryLayer(Exception):
-    pass
-
-
-class NoCatenaryOutput(Exception):
-    pass
-
-
-class NoSwaySurfaceOutput(Exception):
-    pass
-
-
-class NoGuideLinesLayer(Exception):
-    pass
-
-
-class NoGuideLinesOutput(Exception):
     pass
 
 
@@ -115,24 +95,18 @@ def main():
         # Get Attributes from User
         if debugging == 0:
             # User input
-            input_las_dataset = arcpy.GetParameterAsText(0)
-            class_code = arcpy.GetParameter(1)
-            cell_size = arcpy.GetParameterAsText(2)
-            minimum_bridge_area = arcpy.GetParameterAsText(3)
-            extrapolate_surface = arcpy.GetParameter(4)
-            output_features = arcpy.GetParameterAsText(5)
+            input_features = arcpy.GetParameterAsText(0)
+            input_surface = arcpy.GetParameter(1)
+            output_features = arcpy.GetParameterAsText(2)
 
             # script variables
             aprx = arcpy.mp.ArcGISProject("CURRENT")
             home_directory = aprx.homeFolder
             project_ws = aprx.defaultGeodatabase
         else:
-            input_las_dataset = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\testing.lasd'
-            class_code = 13
-            cell_size = str(0.5)
-            minimum_bridge_area = str(20)
-            extrapolate_surface = False
-            output_features = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\bridges'
+            input_features = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\bridges_test_surfaces'
+            input_surface = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\ArcHydro\TSDepth\wse_28'
+            output_features = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\bridges_output'
 
             home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact'
             project_ws = home_directory + "\\3DFloodImpact.gdb"
@@ -148,11 +122,6 @@ def main():
         if not os.path.exists(log_directory):
             os.makedirs(log_directory)
 
-        #  ensure numerical input is correct
-        # fail safe for Europe's comma's
-        cell_size = float(re.sub("[,.]", ".", cell_size))
-        minimum_bridge_area = float(re.sub("[,.]", ".", minimum_bridge_area))
-
         # rename layer files (for packaging)
         if os.path.exists(layer_directory):
             common_lib.rename_file_extension(layer_directory, ".txt", ".lyrx")
@@ -165,15 +134,12 @@ def main():
         start_time = time.clock()
 
         # check if input exists
-        if arcpy.Exists(input_las_dataset):
+        if arcpy.Exists(input_features):
 
             # extract the elevation layers
-            bridges = extract_bridges_from_las.extract(lc_lasd=input_las_dataset,
+            bridges = calculate_height_above_surface.calculate_height(lc_input_features=input_features,
                                                        lc_ws=scratch_ws,
-                                                       lc_class_code=class_code,
-                                                       lc_cell_size=float(cell_size),
-                                                       lc_min_bridge_area=float(minimum_bridge_area),
-                                                       lc_extrapolate=extrapolate_surface,
+                                                       lc_input_surface=input_surface,
                                                        lc_output_features=output_features,
                                                        lc_log_dir=log_directory,
                                                        lc_debug=verbose,
@@ -181,15 +147,17 @@ def main():
 
             if bridges:
                 if arcpy.Exists(bridges):
-                    arcpy.AddMessage("Adding Bridges")
-
                     output_layer1 = common_lib.get_name_from_feature_class(bridges)
                     arcpy.MakeFeatureLayer_management(bridges, output_layer1)
 
-                    arcpy.SetParameter(6, output_layer1)
+                    # extrude using layer file and turn into multipatch
+
+                    arcpy.SetParameter(3, output_layer1)
+
+                    # add symbology to points and add layer
 
                     end_time = time.clock()
-                    msg_body = create_msg_body("extract_bridges_from_las completed successfully.", start_time, end_time)
+                    msg_body = create_msg_body("calculate_height_above_surface completed successfully.", start_time, end_time)
                     msg(msg_body)
                 else:
                     end_time = time.clock()
@@ -228,29 +196,9 @@ def main():
         print("Can't find attachment points layer. Exiting...")
         arcpy.AddError("Can't find attachment points layer. Exiting...")
 
-    except NoCatenaryLayer:
-        print("Can't find Catenary layer. Exiting...")
-        arcpy.AddError("Can't find Catenary layer. Exiting...")
-
-    except NoCatenaryOutput:
-        print("Can't create Catenary output. Exiting...")
-        arcpy.AddError("Can't create Catenary output. Exiting...")
-
-    except NoSwaySurfaceOutput:
-        print("Can't find SwaySurface output. Exiting...")
-        arcpy.AddError("Can't find SwaySurface. Exiting...")
-
-    except NoGuideLinesLayer:
-        print("Can't find GuideLines output. Exiting...")
-        arcpy.AddError("Can't find GuideLines. Exiting...")
-
     except MoreThan1Selected:
         print("More than 1 line selected. Please select 1 guide line only. Exiting...")
         arcpy.AddError("More than 1 line selected. Please select 1 guide line only. Exiting...")
-
-    except NoGuideLinesOutput:
-        print("Can't create GuideLines output. Exiting...")
-        arcpy.AddError("Can't create GuideLines. Exiting...")
 
     except arcpy.ExecuteError:
         line, filename, synerror = trace()

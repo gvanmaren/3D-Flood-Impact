@@ -21,7 +21,7 @@ import importlib
 import calculate_height_above_drainage_surface
 import os
 
-if 'calculate_height_above_surface' in sys.modules:
+if 'calculate_height_above_drainage_surface' in sys.modules:
     importlib.reload(calculate_height_above_drainage_surface)
 import common_lib
 if 'common_lib' in sys.modules:
@@ -30,7 +30,7 @@ import time
 from common_lib import create_msg_body, msg, trace
 
 # debugging switches
-debugging = 1
+debugging = 0
 if debugging == 1:
     enableLogging = True
     DeleteIntermediateData = False
@@ -110,10 +110,10 @@ def main():
             tin_directory = home_directory + "\TINs"
         else:
             input_features = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\bridges_test_surfaces'
-            input_surface = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\bridges_hand'
-            is_hand = True
+            input_surface = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\bridges_hand_raster'
+            is_hand = False
             dem = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\austin_dtm'
-            output_features = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\bridges_output'
+            output_features = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\bridges_HAND'
 
             home_directory = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact'
             project_ws = home_directory + "\\3DFloodImpact.gdb"
@@ -121,6 +121,9 @@ def main():
 
         if os.path.exists(home_directory + "\\p20"):  # it is a package
             home_directory = home_directory + "\\p20"
+
+        if not os.path.exists(tin_directory):
+            os.makedirs(tin_directory)
 
         arcpy.AddMessage("Project Home Directory is: " + home_directory)
 
@@ -149,39 +152,47 @@ def main():
             if z_values:
                 if arcpy.Exists(input_surface):
                     # extract the elevation layers
-                    bridges = calculate_height_above_drainage_surface.calculate_height(lc_input_features=input_features,
-                                                                              lc_ws=scratch_ws,
-                                                                              lc_tin_dir=tin_directory,
-                                                                              lc_input_surface=input_surface,
-                                                                              lc_is_hand=is_hand,
-                                                                              lc_dem=dem,
-                                                                              lc_output_features=output_features,
-                                                                              lc_log_dir=log_directory,
-                                                                              lc_debug=verbose,
-                                                                              lc_memory_switch=in_memory_switch)
+                    bridges, bridge_points = calculate_height_above_drainage_surface.calculate_height(lc_input_features=input_features,
+                                                                                       lc_ws=scratch_ws,
+                                                                                       lc_tin_dir=tin_directory,
+                                                                                       lc_input_surface=input_surface,
+                                                                                       lc_is_hand=is_hand,
+                                                                                       lc_dem=dem,
+                                                                                       lc_output_features=output_features,
+                                                                                       lc_log_dir=log_directory,
+                                                                                       lc_debug=verbose,
+                                                                                       lc_memory_switch=in_memory_switch)
 
-                    if bridges:
-                        if arcpy.Exists(bridges):
-                            output_layer1 = common_lib.get_name_from_feature_class(bridges)
-                            arcpy.MakeFeatureLayer_management(bridges, output_layer1)
+                    if bridges and bridge_points:
+                        # add symbology to points and add layer
+                        output_layer1 = common_lib.get_name_from_feature_class(bridges)
+                        arcpy.MakeFeatureLayer_management(bridges, output_layer1)
 
-                            # extrude using layer file and turn into multipatch
+                        output_layer2 = common_lib.get_name_from_feature_class(bridge_points)
+                        arcpy.MakeFeatureLayer_management(bridge_points, output_layer2)
 
-                            arcpy.SetParameter(5, output_layer1)
-
-                            # add symbology to points and add layer
-
-                            end_time = time.clock()
-                            msg_body = create_msg_body("calculate_height_above_surface completed successfully.",
-                                                       start_time, end_time)
-                            msg(msg_body)
+                        if is_hand:
+                            symbology_layer = layer_directory + "\\hand_labels.lyrx"
                         else:
-                            end_time = time.clock()
-                            msg_body = create_msg_body("No bridge surfaces created. Exiting...", start_time, end_time)
+                            symbology_layer = layer_directory + "\\had_labels.lyrx"
+
+                        if arcpy.Exists(symbology_layer):
+                            arcpy.ApplySymbologyFromLayer_management(output_layer2, symbology_layer)
+                        else:
+                            msg_body = create_msg_body("Can't find " + symbology_layer + " in " + layer_directory, 0,
+                                                       0)
                             msg(msg_body, WARNING)
+
+                        arcpy.SetParameter(5, output_layer1)
+                        arcpy.SetParameter(6, output_layer2)
+
+                        end_time = time.clock()
+                        msg_body = create_msg_body("calculate_height_above_surface completed successfully.",
+                                                   start_time, end_time)
+                        msg(msg_body)
                     else:
                         end_time = time.clock()
-                        msg_body = create_msg_body("No bridge surfaces created. Exiting...", start_time, end_time)
+                        msg_body = create_msg_body("No bridge surfaces and points created. Exiting...", start_time, end_time)
                         msg(msg_body, WARNING)
 
                     arcpy.ClearWorkspaceCache_management()

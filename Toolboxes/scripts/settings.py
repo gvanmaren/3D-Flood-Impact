@@ -2,7 +2,7 @@
 
 # Name of the tool.
 # Used for logging
-TOOLNAME = "Create3DFloodLevel"
+TOOLNAME = "FloodImpactAnalysis"
 
 # error name
 # used when printing errors

@@ -97,8 +97,15 @@ def convert(input_source, flood_elevation_attribute, esri_flood_elevation_attrib
         arcpy.env.overwriteOutput = True
 
         # fail safe for Europese's comma's
-        default_flood_elevation_value = float(re.sub("[,.]", ".", default_flood_elevation_value))
-        cell_size = float(re.sub("[,.]", ".", cell_size))
+        if default_flood_elevation_value:
+            default_flood_elevation_value = float(re.sub("[,.]", ".", default_flood_elevation_value))
+        else:
+            default_flood_elevation_value = 1
+
+        if cell_size:
+            cell_size = float(re.sub("[,.]", ".", cell_size))
+        else:
+            cell_size = 1
 
         if not os.path.exists(tiff_directory):
             os.makedirs(tiff_directory)

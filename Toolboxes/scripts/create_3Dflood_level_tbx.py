@@ -25,7 +25,7 @@ import time
 from common_lib import create_msg_body, msg, trace
 
 # debugging switches
-debugging = 1
+debugging = 0
 if debugging:
     enableLogging = True
     DeleteIntermediateData = False

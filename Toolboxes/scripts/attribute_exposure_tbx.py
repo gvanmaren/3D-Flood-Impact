@@ -146,35 +146,20 @@ def main():
         else:
             # debug
             riskType = "NOAA Sea Level Rise"  # "NOAA Sea Level Rise", "FEMA Flood Percent", "FEMA Flood Annual", "Tidal Flood", "Storm Surge", "Riverine Flood"
-            inWaterSurfaceType = ""  # "Raster", "Multipatch"
-            #inSurfaceGDB = r'D:\Gert\Work\Esri\Demos\ArcGISPro\ArcGISPro1_3\Queenstown\Flooding\Flood_elevation_3D.gdb'
-            #inSurfaceGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\SampleFloodData\Results_NOAA_SeaLevelRise_3D.gdb'
-            inSurfaceGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\SampleFloodData\Results_NOAA_SeaLevelRise_3D.gdb'
-#            inSurfaceGDB = r''
-            #inDepthGDB = r'D:\Gert\Work\Esri\Demos\ArcGISPro\ArcGISPro1_3\Queenstown\Flooding\Flooding_depth.gdb'
-            inDepthGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\SampleFloodData\NOAA_SeaLevelRise_Depth_Prj.gdb'
-            #inDepthGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\SampleFloodData\FEMA_CstDpth_1.gdb'
-            #inFeature = r'D:\Gert\Work\Esri\Demos\ArcGISPro\ArcGISPro1_3\Queenstown\Flooding\Results.gdb\Qt_Buildings_all_t1'
-            #            inFeature = r'D:\Temporary\Flood\3DFloodImpact\SampleFloodData\Baltimore.gdb\Buildings_3D'
-            inFeature = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\Testing.gdb\Buildings_3D_noflood'
+#            inSurfaceGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\SampleFloodData\Results_NOAA_SeaLevelRise_3D.gdb'
+            inSurfaceGDB = r''
+            inDepthGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\SampleFloodData\NOAA_SeaLevelRise_Depth_Prj.gdb'
+            inFeature = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\SampleFloodData\Baltimore.gdb\Buildings_3D'
 
             featureFID = "OBJECTID"
             #featureFID = "BuildingFID"
 
-            #            inSurfaceGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\FloodImpactPlanning_old\TestData\NOAA_SeaLevelRise1.gdb'
-            #            inDepthGDB = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\FloodImpactPlanning_old\TestData\NOAA_SeaLevelRise_Depth1.gdb'
-            #            inFeature = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\FloodImpactPlanning_old\Testing.gdb\test1000_mp_proj'
-            #            featureFID = "BuildingFID"
             bufferDistance = "0"
             tolerance = 1
             #            inDEM = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.1\3DFloodImpact\Baltimore.gdb\Sandy_Baltimore_dtm_2m_test_area1_1900'
             inDEM = ""
-            #            inLossTable=r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2\3DFloodImpact\tables\fema_loss_potential.xls\fema_loss_potential$'
-            inLossTable = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\tables\fema_loss_potential_feet.xls\fema_loss_potential$'
-            #            inLossTable = r'D:\Temp\Flood\3DFloodImpact\tables\fema_loss_potential_ft.xls\fema_loss_potential$'
-
-            outTable = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.2.3\3DFloodImpact\Testing.gdb\flood_exposure_test'
-            #            outTable = r'D:\Temporary\Flood\3DFloodImpact\3DFloodImpact.gdb\flood_exposure'
+            inLossTable = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\tables\fema_loss_potential_feet.xls\fema_loss_potential$'
+            outTable = r'D:\Gert\Work\Esri\Solutions\3DFloodImpact\work2.3\3DFloodImpact\Testing.gdb\flood_exposure_test'
 
             areaField = True
             minField = True
@@ -194,7 +179,10 @@ def main():
             lossField = True
 
         # fail safe for Europese's comma's
-        bufferDistance = float(re.sub("[,.]", ".", bufferDistance))
+        if bufferDistance:
+            bufferDistance = float(re.sub("[,.]", ".", bufferDistance))
+        else:
+            bufferDistance = 0
 
         start_time = time.clock()
 
